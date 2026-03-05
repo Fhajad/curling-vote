@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curling Vote — Admin</title>
+<style>
+  :root {
+    --bg:      #080e1c;
+    --bg2:     #0f1a2e;
+    --ice:     #4fc3f7;
+    --slate:   #1e2d45;
+    --text:    #e8f4f8;
+    --muted:   #7a9ab5;
+    --gold:    #ffd700;
+    --green:   #66bb6a;
+    --red:     #ef5350;
+    --orange:  #ffa726;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--bg2);
+    border-bottom: 2px solid var(--ice);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    color: var(--ice);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .logo span { color: var(--text); }
+  .logo small { font-size: .65rem; color: var(--muted); display: block; font-weight: 400; letter-spacing: 0; }
+  .header-qr { display: flex; align-items: center; gap: 10px; }
+  .qr-thumb { width: 44px; height: 44px; border-radius: 6px; }
+  .qr-info { font-size: .7rem; color: var(--muted); }
+  .qr-url  { font-size: .75rem; color: var(--ice); font-family: monospace; word-break: break-all; }
+
+  main { flex: 1; padding: 20px 24px 40px; }
+
+  /* ─── Screens ─────────────────────────────── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ─── Login ───────────────────────────────── */
+  #screen-login {
+    max-width: 360px;
+    margin: 80px auto;
+    background: var(--bg2);
+    border: 1px solid var(--slate);
+    border-radius: 16px;
+    padding: 32px 28px;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #screen-login.active { display: flex; }
+  .login-title { font-size: 1.2rem; font-weight: 800; color: var(--ice); }
+  .login-sub   { font-size: .85rem; color: var(--muted); }
+  .form-row { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: .75rem; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  input[type="password"], input[type="text"], select {
+    background: var(--slate);
+    border: 1px solid var(--bg);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-size: .95rem;
+    width: 100%;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input:focus, select:focus { border-color: var(--ice); }
+  .err-msg { color: var(--red); font-size: .8rem; }
+
+  /* ─── Setup ───────────────────────────────── */
+  #screen-setup {
+    max-width: 480px;
+    margin: 60px auto;
+    background: var(--bg2);
+    border: 1px solid var(--slate);
+    border-radius: 16px;
+    padding: 32px 28px;
+    display: none;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #screen-setup.active { display: flex; }
+  .setup-title { font-size: 1.2rem; font-weight: 800; color: var(--ice); }
+
+  .scheme-btns { display: flex; gap: 10px; }
+  .scheme-btn {
+    flex: 1;
+    padding: 12px;
+    background: var(--slate);
+    border: 2px solid var(--slate);
+    border-radius: 10px;
+    color: var(--text);
+    font-weight: 700;
+    font-size: .9rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+  }
+  .scheme-btn.active { border-color: var(--ice); color: var(--ice); background: rgba(79,195,247,.08); }
+
+  .count-row { display: flex; align-items: center; gap: 14px; }
+  input[type="number"] {
+    background: var(--slate);
+    border: 1px solid var(--bg);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-size: 1.1rem;
+    width: 80px;
+    text-align: center;
+    outline: none;
+  }
+  .preview-sheets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+    background: var(--slate);
+    border-radius: 8px;
+    min-height: 40px;
+  }
+  .preview-chip {
+    background: var(--bg2);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  /* ─── Main admin ──────────────────────────── */
+  #screen-admin { }
+
+  .section-label {
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .sheets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  /* ─── Sheet admin card ────────────────────── */
+  .sheet-admin-card {
+    background: var(--bg2);
+    border: 2px solid var(--slate);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color .3s;
+  }
+  .sheet-admin-card.voting { border-color: var(--ice); }
+  .sheet-admin-card.result { border-color: var(--gold); }
+
+  .sad-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--slate);
+  }
+  .sad-title { font-weight: 800; font-size: 1rem; color: var(--ice); letter-spacing: .06em; }
+  .sad-phase {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--slate);
+    color: var(--muted);
+  }
+  .sad-phase.voting { background: rgba(79,195,247,.15); color: var(--ice); }
+  .sad-phase.result { background: rgba(255,215,0,.12);  color: var(--gold); }
+
+  .sad-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* mini vote bars */
+  .mini-votes { display: flex; flex-direction: column; gap: 4px; }
+  .mini-cat-label { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-top: 4px; }
+  .mini-bar-row { display: flex; align-items: center; gap: 6px; }
+  .mini-bar-label { font-size: .75rem; width: 86px; flex-shrink: 0; color: var(--text); }
+  .mini-bar-track { flex: 1; height: 14px; background: var(--slate); border-radius: 7px; overflow: hidden; }
+  .mini-bar-fill {
+    height: 100%;
+    border-radius: 7px;
+    transition: width .5s ease;
+  }
+  .mini-bar-fill.guard   { background: #4db6ac; }
+  .mini-bar-fill.draw    { background: #7986cb; }
+  .mini-bar-fill.takeout { background: #ef5350; }
+  .mini-bar-fill.in      { background: #66bb6a; }
+  .mini-bar-fill.out     { background: #ffa726; }
+  .mini-bar-fill.l12     { background: #ab47bc; }
+  .mini-bar-fill.l8      { background: #7e57c2; }
+  .mini-bar-fill.l4      { background: #5c6bc0; }
+  .mini-bar-fill.l2      { background: #42a5f5; }
+  .mini-bar-count { font-size: .7rem; color: var(--muted); width: 28px; text-align: right; }
+
+  /* countdown mini */
+  .mini-countdown { display: flex; align-items: center; gap: 10px; }
+  .mini-cd-num {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--ice);
+    min-width: 52px;
+    text-align: center;
+    font-feature-settings: 'tnum';
+  }
+  .mini-cd-bar-wrap { flex: 1; background: var(--slate); border-radius: 6px; height: 8px; overflow: hidden; }
+  .mini-cd-bar { height: 100%; border-radius: 6px; background: var(--ice); transition: width .9s linear, background .5s; }
+
+  /* result mini */
+  .mini-result { text-align: center; padding: 8px 0; }
+  .mini-result-shot { font-size: 1.3rem; font-weight: 900; color: var(--gold); }
+  .mini-result-sub  { font-size: .8rem; color: var(--ice); margin-top: 4px; }
+
+  /* controls */
+  .sad-controls { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--slate); padding-top: 12px; }
+  .ctrl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  select.countdown-sel {
+    background: var(--slate);
+    border: 1px solid var(--bg);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-size: .85rem;
+  }
+
+  /* ─── Buttons ─────────────────────────────── */
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: .85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    letter-spacing: .03em;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+  .btn-primary  { background: var(--ice);    color: #080e1c; }
+  .btn-success  { background: var(--green);  color: #080e1c; font-size: .95rem; }
+  .btn-danger   { background: var(--red);    color: #fff; }
+  .btn-warning  { background: var(--orange); color: #080e1c; }
+  .btn-ghost    { background: var(--slate);  color: var(--text); }
+  .btn-gold     { background: var(--gold);   color: #080e1c; font-size: 1rem; }
+  .btn-sm       { padding: 6px 12px; font-size: .78rem; }
+  .btn-full     { width: 100%; }
+
+  /* ─── Danger zone ─────────────────────────── */
+  .danger-zone {
+    margin-top: 32px;
+    border: 1px solid #3a1515;
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .danger-label { font-size: .8rem; color: #ef5350; font-weight: 600; }
+  .danger-sub   { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+
+  /* ─── QR rotate section ───────────────────── */
+  .qr-section {
+    margin-top: 16px;
+    background: var(--bg2);
+    border: 1px solid var(--slate);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .qr-section img { width: 80px; height: 80px; border-radius: 8px; }
+  .qr-section-info { flex: 1; min-width: 200px; }
+  .qr-section-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+  .qr-section-url   { font-size: .8rem; color: var(--ice); font-family: monospace; word-break: break-all; margin-bottom: 8px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .anim { animation: fadeIn .3s ease; }
+
+  .voters-badge {
+    font-size: .7rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    Curling <span>Vote</span>
+    <small>Admin Panel</small>
+  </div>
+  <div class="header-qr" id="header-qr" style="display:none">
+    <img class="qr-thumb" id="qr-thumb" src="" alt="QR">
+    <div>
+      <div class="qr-info">Voter URL</div>
+      <div class="qr-url" id="qr-url-header">—</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Login -->
+  <div class="screen" id="screen-login">
+    <div class="login-title">Admin Login</div>
+    <div class="login-sub">Enter your admin token to manage the game.</div>
+    <div class="form-row">
+      <label>Admin Token</label>
+      <input type="password" id="login-input" placeholder="Enter admin token…">
+    </div>
+    <div class="err-msg" id="login-err"></div>
+    <button class="btn btn-primary" id="login-btn">Sign In</button>
+  </div>
+
+  <!-- Setup -->
+  <div class="screen" id="screen-setup">
+    <div class="setup-title">Configure Sheets</div>
+
+    <div class="form-row">
+      <label>Naming Scheme</label>
+      <div class="scheme-btns">
+        <div class="scheme-btn active" id="scheme-letter" data-scheme="letter">Letters (A, B, C…)</div>
+        <div class="scheme-btn"       id="scheme-number" data-scheme="number">Numbers (1, 2, 3…)</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Number of Sheets</label>
+      <div class="count-row">
+        <input type="number" id="sheet-count" value="2" min="1" max="48">
+        <span style="color:var(--muted);font-size:.85rem">sheets</span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Preview</label>
+      <div class="preview-sheets" id="preview-chips"></div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="setup-btn">Start Session</button>
+  </div>
+
+  <!-- Main admin -->
+  <div class="screen" id="screen-admin">
+
+    <div class="section-label">Active Sheets</div>
+    <div class="sheets-grid" id="sheets-grid"></div>
+
+    <!-- QR / voter URL -->
+    <div class="section-label">Voter Access</div>
+    <div class="qr-section">
+      <img id="qr-large" src="" alt="QR Code">
+      <div class="qr-section-info">
+        <div class="qr-section-label">Voter URL (embedded in QR)</div>
+        <div class="qr-section-url" id="qr-url-main">—</div>
+        <button class="btn btn-warning btn-sm" id="rotate-btn">🔄 Rotate QR Token</button>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="danger-zone">
+      <div>
+        <div class="danger-label">Full Reset</div>
+        <div class="danger-sub">Clears all sheets and returns to setup. Cannot be undone.</div>
+      </div>
+      <button class="btn btn-danger" id="reset-btn">Reset Everything</button>
+    </div>
+
+  </div>
+
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────────
+let adminToken  = sessionStorage.getItem('adminToken') || '';
+let socket      = null;
+let categories  = {};
+let sheetsData  = {};
+let sheetNames  = [];
+let currentScheme = 'letter';
+const colorMap    = { guard:'guard', draw:'draw', takeout:'takeout', in:'in', out:'out', '12':'l12', '8':'l8', '4':'l4', '2':'l2' };
+const shotLabels  = { guard:'Guard', draw:'Draw', takeout:'Takeout', in:'In Turn (L)', out:'Out Turn (R)', '12':"12'", '8':"8'", '4':"4'", '2':"2'" };
+
+// ─── Init ────────────────────────────────────────────────────────────────────────
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+function connect() {
+  if (socket) { socket.disconnect(); socket = null; }
+  socket = io({ query: { role: 'admin', adminToken } });
+
+  socket.on('connect_error', () => {
+    adminToken = '';
+    sessionStorage.removeItem('adminToken');
+    document.getElementById('login-err').textContent = 'Invalid token.';
+    show('screen-login');
+  });
+
+  socket.on('init', data => {
+    categories = data.categories;
+    if (data.qr) applyQR(data.qr);
+    if (!data.setup) {
+      show('screen-setup');
+      updatePreview();
+    } else {
+      applySetup(data.sheetNames, data.sheets);
+    }
+  });
+
+  socket.on('setup-complete', ({ sheetNames: names, sheets }) => {
+    applySetup(names, sheets);
+  });
+
+  socket.on('state-update', state => {
+    sheetsData[state.sheetId] = state;
+    renderCard(state.sheetId);
+  });
+
+  socket.on('votes-update', ({ sheetId, votes, totalVoters }) => {
+    if (!sheetsData[sheetId]) return;
+    sheetsData[sheetId].votes     = votes;
+    sheetsData[sheetId].totalVoters = totalVoters;
+    renderMiniBars(sheetId);
+    const el = document.getElementById(`voters-${sheetId}`);
+    if (el) el.textContent = `${totalVoters} voter${totalVoters !== 1 ? 's' : ''}`;
+  });
+
+  socket.on('timer-tick', ({ sheetId, timeRemaining }) => {
+    if (!sheetsData[sheetId]) return;
+    sheetsData[sheetId].timeRemaining = timeRemaining;
+    updateMiniCountdown(sheetId);
+  });
+
+  socket.on('token-rotated', qr => applyQR(qr));
+  socket.on('qr-update', applyQR);
+
+  socket.on('full-reset', () => {
+    sheetsData = {};
+    sheetNames = [];
+    show('screen-setup');
+    updatePreview();
+  });
+}
+
+// ─── Login ───────────────────────────────────────────────────────────────────────
+
+if (adminToken) {
+  connect();
+} else {
+  show('screen-login');
+}
+
+document.getElementById('login-btn').addEventListener('click', () => {
+  adminToken = document.getElementById('login-input').value.trim();
+  if (!adminToken) return;
+  sessionStorage.setItem('adminToken', adminToken);
+  connect();
+});
+document.getElementById('login-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+// ─── Setup screen ────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.scheme-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentScheme = btn.dataset.scheme;
+    updatePreview();
+  });
+});
+
+document.getElementById('sheet-count').addEventListener('input', updatePreview);
+
+function updatePreview() {
+  const count = parseInt(document.getElementById('sheet-count').value) || 1;
+  const chips = document.getElementById('preview-chips');
+  chips.innerHTML = '';
+  const names = getNames(count, currentScheme);
+  for (const n of names) {
+    const chip = document.createElement('div');
+    chip.className = 'preview-chip';
+    chip.textContent = `Sheet ${n}`;
+    chips.appendChild(chip);
+  }
+}
+
+function getNames(count, scheme) {
+  return Array.from({ length: count }, (_, i) =>
+    scheme === 'letter' ? String.fromCharCode(65 + i) : String(i + 1)
+  );
+}
+
+document.getElementById('setup-btn').addEventListener('click', () => {
+  const count  = parseInt(document.getElementById('sheet-count').value) || 1;
+  socket.emit('setup', { count, scheme: currentScheme });
+});
+
+updatePreview();
+
+// ─── Setup applied ────────────────────────────────────────────────────────────────
+
+function applySetup(names, sheets) {
+  sheetNames = names;
+  sheetsData = {};
+  for (const s of sheets) sheetsData[s.sheetId] = s;
+  buildGrid();
+  show('screen-admin');
+}
+
+// ─── QR ──────────────────────────────────────────────────────────────────────────
+
+function applyQR(qr) {
+  document.getElementById('qr-thumb').src    = qr.dataUrl;
+  document.getElementById('qr-large').src    = qr.dataUrl;
+  document.getElementById('qr-url-header').textContent = qr.url;
+  document.getElementById('qr-url-main').textContent   = qr.url;
+  document.getElementById('header-qr').style.display   = 'flex';
+}
+
+// ─── Grid ────────────────────────────────────────────────────────────────────────
+
+function buildGrid() {
+  const grid = document.getElementById('sheets-grid');
+  grid.innerHTML = '';
+  for (const id of sheetNames) {
+    const card = buildCard(id);
+    grid.appendChild(card);
+  }
+}
+
+function buildCard(sheetId) {
+  const s = sheetsData[sheetId] || { phase: 'idle', round: 0, votes: {type:{},handle:{},line:{}}, timeRemaining: 0, countdown: 30, totalVoters: 0, winners: {} };
+
+  const div = document.createElement('div');
+  div.className = `sheet-admin-card ${s.phase} anim`;
+  div.id = `sacard-${sheetId}`;
+  div.innerHTML = `
+    <div class="sad-header">
+      <div class="sad-title">Sheet ${sheetId}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="voters-badge" id="voters-${sheetId}">${s.totalVoters} voters</span>
+        <div class="sad-phase ${s.phase}" id="phase-badge-${sheetId}">${phaseBadgeLabel(s.phase, s.round)}</div>
+      </div>
+    </div>
+    <div class="sad-body" id="sad-body-${sheetId}"></div>
+  `;
+  renderCardBody(sheetId, div.querySelector(`#sad-body-${sheetId}`), s);
+  return div;
+}
+
+function renderCard(sheetId) {
+  const card = document.getElementById(`sacard-${sheetId}`);
+  if (!card) return;
+  const s = sheetsData[sheetId];
+  card.className = `sheet-admin-card ${s.phase} anim`;
+  document.getElementById(`phase-badge-${sheetId}`).className = `sad-phase ${s.phase}`;
+  document.getElementById(`phase-badge-${sheetId}`).textContent = phaseBadgeLabel(s.phase, s.round);
+  const body = document.getElementById(`sad-body-${sheetId}`);
+  body.innerHTML = '';
+  renderCardBody(sheetId, body, s);
+}
+
+function phaseBadgeLabel(phase, round) {
+  if (phase === 'voting') return `End ${round} · Voting`;
+  if (phase === 'result') return `End ${round} · Done`;
+  return 'Idle';
+}
+
+function renderCardBody(sheetId, container, s) {
+  container.innerHTML = '';
+
+  // Vote display (always visible if there are votes)
+  const miniVotes = document.createElement('div');
+  miniVotes.className = 'mini-votes';
+  miniVotes.id = `mini-votes-${sheetId}`;
+  container.appendChild(miniVotes);
+  renderMiniBars(sheetId);
+
+  // Countdown (voting)
+  if (s.phase === 'voting') {
+    const cd = document.createElement('div');
+    cd.className = 'mini-countdown';
+    cd.innerHTML = `
+      <div class="mini-cd-num" id="cd-num-${sheetId}">${s.timeRemaining}</div>
+      <div style="flex:1">
+        <div class="mini-cd-bar-wrap">
+          <div class="mini-cd-bar" id="cd-bar-${sheetId}" style="width:100%"></div>
+        </div>
+      </div>`;
+    container.appendChild(cd);
+    updateMiniCountdown(sheetId);
+  }
+
+  // Result display
+  if (s.phase === 'result') {
+    const w = s.winners;
+    const res = document.createElement('div');
+    res.className = 'mini-result';
+    res.innerHTML = `
+      <div class="mini-result-shot">${shotLabels[w.type] || '—'}</div>
+      <div class="mini-result-sub">${shotLabels[w.handle] || '—'} · ${shotLabels[w.line] || '—'}</div>`;
+    container.appendChild(res);
+  }
+
+  // Controls
+  const ctrl = document.createElement('div');
+  ctrl.className = 'sad-controls';
+
+  if (s.phase === 'idle' || s.phase === 'result') {
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+    const sel = document.createElement('select');
+    sel.className = 'countdown-sel';
+    sel.id = `cd-sel-${sheetId}`;
+    for (const [v, l] of [['15','15s'],['30','30s'],['45','45s'],['60','60s']]) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = l;
+      if (v === '30') o.selected = true;
+      sel.appendChild(o);
+    }
+    row.appendChild(sel);
+
+    const startBtn = document.createElement('button');
+    startBtn.className = 'btn btn-primary';
+    startBtn.textContent = s.phase === 'result' ? '▶ Start Next End' : '▶ Start End';
+    startBtn.addEventListener('click', () => {
+      socket.emit('start-round', { sheetId, countdown: parseInt(sel.value) });
+    });
+    row.appendChild(startBtn);
+    ctrl.appendChild(row);
+  }
+
+  if (s.phase === 'voting') {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-warning btn-sm';
+    btn.textContent = 'Force End Voting';
+    btn.addEventListener('click', () => socket.emit('force-end', { sheetId }));
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+    row.appendChild(btn);
+    ctrl.appendChild(row);
+  }
+
+  if (s.phase === 'result') {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-gold btn-full';
+    btn.textContent = '✓ Throw Complete';
+    btn.addEventListener('click', () => socket.emit('throw-complete', { sheetId }));
+    ctrl.appendChild(btn);
+  }
+
+  container.appendChild(ctrl);
+}
+
+// ─── Mini bars ────────────────────────────────────────────────────────────────────
+
+function renderMiniBars(sheetId) {
+  const container = document.getElementById(`mini-votes-${sheetId}`);
+  if (!container) return;
+  const s = sheetsData[sheetId];
+  if (!s || !s.votes) { container.innerHTML = ''; return; }
+
+  let html = '';
+  for (const [catKey, cat] of Object.entries(categories)) {
+    html += `<div class="mini-cat-label">${cat.label}</div>`;
+    const total = Object.values(s.votes[catKey] || {}).reduce((a,b)=>a+b,0);
+    for (const opt of cat.options) {
+      const count = (s.votes[catKey] || {})[opt] || 0;
+      const pct   = total > 0 ? Math.round(count / total * 100) : 0;
+      const cls   = colorMap[opt] || '';
+      html += `<div class="mini-bar-row">
+        <div class="mini-bar-label">${cat.labels[opt]}</div>
+        <div class="mini-bar-track"><div class="mini-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="mini-bar-count">${count}</div>
+      </div>`;
+    }
+  }
+  container.innerHTML = html;
+}
+
+// ─── Mini countdown ───────────────────────────────────────────────────────────────
+
+function updateMiniCountdown(sheetId) {
+  const s   = sheetsData[sheetId];
+  if (!s)   return;
+  const num = document.getElementById(`cd-num-${sheetId}`);
+  const bar = document.getElementById(`cd-bar-${sheetId}`);
+  if (!num || !bar) return;
+  const t   = s.timeRemaining;
+  const pct = s.countdown > 0 ? (t / s.countdown * 100) : 0;
+  num.textContent = t;
+  num.style.color = t > 10 ? 'var(--ice)' : t > 5 ? 'var(--gold)' : 'var(--red)';
+  bar.style.width = pct + '%';
+  bar.style.background = t > 10 ? 'var(--ice)' : t > 5 ? 'var(--gold)' : 'var(--red)';
+}
+
+// ─── Global controls ──────────────────────────────────────────────────────────────
+
+document.getElementById('rotate-btn').addEventListener('click', () => {
+  if (confirm('Rotating the QR token will disconnect all current voters. Continue?')) {
+    socket.emit('rotate-token');
+  }
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('This will fully reset the session and return to setup. All scores and votes will be lost. Continue?')) {
+    socket.emit('reset-all');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Curling Vote</title>
+<style>
+  :root {
+    --bg:      #080e1c;
+    --bg2:     #0f1a2e;
+    --ice:     #4fc3f7;
+    --slate:   #1e2d45;
+    --text:    #e8f4f8;
+    --muted:   #7a9ab5;
+    --gold:    #ffd700;
+    --guard:   #4db6ac;
+    --draw:    #7986cb;
+    --takeout: #ef5350;
+    --in:      #66bb6a;
+    --out:     #ffa726;
+    --l12:     #ab47bc;
+    --l8:      #7e57c2;
+    --l4:      #5c6bc0;
+    --l2:      #42a5f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--bg2);
+    border-bottom: 2px solid var(--ice);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    color: var(--ice);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--text); }
+  #header-meta {
+    font-size: .75rem;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px 32px;
+    gap: 20px;
+  }
+
+  /* ─── Screens ──────────────────────────────── */
+  .screen { display: none; flex-direction: column; gap: 16px; }
+  .screen.active { display: flex; }
+
+  /* ─── Status messages ─────────────────────── */
+  .status-box {
+    background: var(--bg2);
+    border: 1px solid var(--slate);
+    border-radius: 12px;
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: .95rem;
+    font-style: italic;
+  }
+  .status-box .big { font-size: 2.2rem; margin-bottom: 8px; }
+  .status-box.error { border-color: #ef5350; color: #ef5350; }
+  .status-box.success { border-color: var(--in); color: var(--in); }
+
+  /* ─── Sheet selector ──────────────────────── */
+  .section-label {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .sheet-btn {
+    background: var(--slate);
+    border: 2px solid var(--slate);
+    border-radius: 12px;
+    padding: 18px 10px;
+    text-align: center;
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all .15s;
+    letter-spacing: .04em;
+  }
+  .sheet-btn:active { transform: scale(.95); }
+  .sheet-btn.voting { border-color: var(--ice); color: var(--ice); }
+  .sheet-btn.result { border-color: var(--gold); color: var(--gold); }
+  .sheet-btn-sub {
+    font-size: .65rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: .05em;
+  }
+
+  /* ─── Vote screen ─────────────────────────── */
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 1px solid var(--slate);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: .8rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+  .back-btn:active { opacity: .6; }
+
+  .sheet-heading {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--ice);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  .countdown-bar-wrap {
+    background: var(--slate);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .countdown-bar-fill {
+    height: 100%;
+    background: var(--ice);
+    border-radius: 6px;
+    transition: width .9s linear, background .5s;
+  }
+  .countdown-text {
+    font-size: .75rem;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  .category-section { display: flex; flex-direction: column; gap: 8px; }
+  .cat-title {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .options-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .opt-btn {
+    flex: 1;
+    min-width: 80px;
+    background: var(--slate);
+    border: 2px solid var(--slate);
+    border-radius: 10px;
+    padding: 14px 8px;
+    text-align: center;
+    color: var(--text);
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    line-height: 1.2;
+  }
+  .opt-btn:active { transform: scale(.95); }
+  .opt-btn.selected {
+    border-color: var(--ice);
+    background: rgba(79,195,247,.12);
+    color: var(--ice);
+  }
+  .opt-btn.selected.guard   { border-color: var(--guard);   background: rgba(77,182,172,.12);  color: var(--guard); }
+  .opt-btn.selected.draw    { border-color: var(--draw);    background: rgba(121,134,203,.12); color: var(--draw); }
+  .opt-btn.selected.takeout { border-color: var(--takeout); background: rgba(239,83,80,.12);   color: var(--takeout); }
+  .opt-btn.selected.in      { border-color: var(--in);      background: rgba(102,187,106,.12); color: var(--in); }
+  .opt-btn.selected.out     { border-color: var(--out);     background: rgba(255,167,38,.12);  color: var(--out); }
+  .opt-btn.selected.l12     { border-color: var(--l12);     background: rgba(171,71,188,.12);  color: var(--l12); }
+  .opt-btn.selected.l8      { border-color: var(--l8);      background: rgba(126,87,194,.12);  color: var(--l8); }
+  .opt-btn.selected.l4      { border-color: var(--l4);      background: rgba(92,107,192,.12);  color: var(--l4); }
+  .opt-btn.selected.l2      { border-color: var(--l2);      background: rgba(66,165,245,.12);  color: var(--l2); }
+  .opt-btn.disabled { opacity: .35; cursor: not-allowed; }
+
+  .opt-shortlabel {
+    font-size: .65rem;
+    font-weight: 600;
+    opacity: .6;
+    margin-top: 2px;
+  }
+
+  .pick-summary {
+    background: var(--bg2);
+    border: 1px solid var(--slate);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: .85rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pick-summary .pick-val { color: var(--text); font-weight: 700; }
+
+  /* ─── Result screen ───────────────────────── */
+  .winner-box {
+    background: var(--bg2);
+    border: 2px solid var(--gold);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+  }
+  .winner-label {
+    font-size: .65rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .winner-shot {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 24px rgba(255,215,0,.3);
+  }
+  .winner-detail {
+    font-size: .9rem;
+    color: var(--ice);
+    margin-top: 6px;
+    font-weight: 600;
+  }
+  .your-pick-note {
+    margin-top: 12px;
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .your-pick-note strong { color: var(--text); }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  .anim { animation: fadeUp .3s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Curling <span>Vote</span></div>
+  <div id="header-meta"></div>
+</header>
+
+<main>
+
+  <!-- Access denied -->
+  <div class="screen active" id="screen-denied">
+    <div class="status-box error">
+      <div class="big">🚫</div>
+      Invalid or expired access link.<br>Please scan the QR code at the venue.
+    </div>
+  </div>
+
+  <!-- Waiting for setup -->
+  <div class="screen" id="screen-waiting">
+    <div class="status-box">
+      <div class="big">🥌</div>
+      Waiting for the organizer to set up sheets…
+    </div>
+  </div>
+
+  <!-- Sheet selector -->
+  <div class="screen" id="screen-sheets">
+    <div class="section-label">Choose your sheet</div>
+    <div class="sheet-grid" id="sheet-grid"></div>
+  </div>
+
+  <!-- Vote screen -->
+  <div class="screen" id="screen-vote">
+    <button class="back-btn" id="back-btn">← All Sheets</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="sheet-heading" id="vote-sheet-name">Sheet A</div>
+      <div class="countdown-text" id="countdown-text"></div>
+    </div>
+    <div class="countdown-bar-wrap">
+      <div class="countdown-bar-fill" id="countdown-bar" style="width:100%"></div>
+    </div>
+    <div id="categories-container"></div>
+    <div class="pick-summary" id="pick-summary">
+      <span>Your pick:</span>
+      <span class="pick-val" id="pick-val">—</span>
+    </div>
+  </div>
+
+  <!-- Waiting (idle on a sheet) -->
+  <div class="screen" id="screen-idle">
+    <button class="back-btn" id="back-btn2">← All Sheets</button>
+    <div class="status-box">
+      <div class="big">⏳</div>
+      Waiting for the next end on <strong id="idle-sheet-name"></strong>…
+    </div>
+  </div>
+
+  <!-- Result screen -->
+  <div class="screen" id="screen-result">
+    <button class="back-btn" id="back-btn3">← All Sheets</button>
+    <div class="winner-box anim">
+      <div class="winner-label">The crowd chose</div>
+      <div class="winner-shot" id="result-shot">—</div>
+      <div class="winner-detail" id="result-detail"></div>
+    </div>
+    <div class="your-pick-note" id="your-pick-note"></div>
+    <div class="status-box" style="font-size:.8rem;padding:14px 16px;">
+      Waiting for the throw to be completed…
+    </div>
+  </div>
+
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ─── Token check ────────────────────────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const token  = params.get('t') || '';
+
+const socket = io({ query: { role: 'voter', token } });
+
+// ─── State ──────────────────────────────────────────────────────────────────────
+let sheetNames  = [];
+let sheetsData  = {};   // sheetId → public state
+let categories  = {};
+let currentSheet = null;
+let myVotes     = { type: null, handle: null, line: null };
+const colorMap  = {
+  guard: 'guard', draw: 'draw', takeout: 'takeout',
+  in: 'in', out: 'out',
+  '12': 'l12', '8': 'l8', '4': 'l4', '2': 'l2',
+};
+const shotLabels = {
+  guard: 'Guard', draw: 'Draw', takeout: 'Takeout',
+  in: 'In Turn (L)', out: 'Out Turn (R)',
+  '12': "12'", '8': "8'", '4': "4'", '2': "2'",
+};
+
+// ─── Socket ──────────────────────────────────────────────────────────────────────
+
+socket.on('connect_error', () => {
+  show('screen-denied');
+});
+
+socket.on('init', data => {
+  categories = data.categories;
+  if (!data.setup) {
+    show('screen-waiting');
+    return;
+  }
+  sheetNames = data.sheetNames;
+  show('screen-sheets');
+  renderSheetGrid();
+});
+
+socket.on('setup-complete', ({ sheetNames: names, sheets }) => {
+  sheetNames = names;
+  sheetsData = {};
+  for (const s of sheets) sheetsData[s.sheetId] = s;
+  show('screen-sheets');
+  renderSheetGrid();
+});
+
+socket.on('sheet-joined', state => {
+  sheetsData[state.sheetId] = state;
+  currentSheet = state.sheetId;
+  myVotes = { type: null, handle: null, line: null };
+  showSheetView(state);
+});
+
+socket.on('state-update', state => {
+  sheetsData[state.sheetId] = state;
+  updateSheetBtn(state.sheetId);
+  if (state.sheetId === currentSheet) {
+    showSheetView(state);
+  }
+});
+
+socket.on('votes-update', ({ sheetId, votes, totalVoters }) => {
+  if (!sheetsData[sheetId]) return;
+  sheetsData[sheetId].votes = votes;
+  sheetsData[sheetId].totalVoters = totalVoters;
+  if (sheetId === currentSheet) {
+    updateMeta(sheetId);
+  }
+});
+
+socket.on('timer-tick', ({ sheetId, timeRemaining }) => {
+  if (!sheetsData[sheetId]) return;
+  sheetsData[sheetId].timeRemaining = timeRemaining;
+  if (sheetId === currentSheet) updateCountdown(sheetId);
+});
+
+socket.on('vote-ack', ({ category, choice }) => {
+  myVotes[category] = choice;
+  updatePickSummary();
+});
+
+socket.on('full-reset', () => {
+  currentSheet = null;
+  myVotes = { type: null, handle: null, line: null };
+  sheetNames = [];
+  sheetsData = {};
+  show('screen-waiting');
+});
+
+// ─── Screen management ──────────────────────────────────────────────────────────
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
+
+// ─── Sheet grid ─────────────────────────────────────────────────────────────────
+
+function renderSheetGrid() {
+  const grid = document.getElementById('sheet-grid');
+  grid.innerHTML = '';
+  for (const id of sheetNames) {
+    const s = sheetsData[id];
+    const btn = document.createElement('div');
+    btn.className = `sheet-btn ${s?.phase || ''}`;
+    btn.id = `sbtn-${id}`;
+    btn.innerHTML = `Sheet ${id}<div class="sheet-btn-sub">${phaseLabel(s?.phase)}</div>`;
+    btn.addEventListener('click', () => joinSheet(id));
+    grid.appendChild(btn);
+  }
+}
+
+function updateSheetBtn(sheetId) {
+  const btn = document.getElementById(`sbtn-${sheetId}`);
+  if (!btn) return;
+  const s = sheetsData[sheetId];
+  btn.className = `sheet-btn ${s?.phase || ''}`;
+  btn.querySelector('.sheet-btn-sub').textContent = phaseLabel(s?.phase);
+}
+
+function phaseLabel(phase) {
+  if (phase === 'voting') return '🟢 Voting open';
+  if (phase === 'result') return '🏁 Result in';
+  return 'Waiting…';
+}
+
+function joinSheet(sheetId) {
+  socket.emit('join-sheet', { sheetId });
+}
+
+// ─── Sheet view ─────────────────────────────────────────────────────────────────
+
+function showSheetView(state) {
+  const { sheetId, phase } = state;
+  document.getElementById('vote-sheet-name').textContent = `Sheet ${sheetId}`;
+  document.getElementById('idle-sheet-name').textContent = `Sheet ${sheetId}`;
+  updateMeta(sheetId);
+
+  if (phase === 'idle') {
+    show('screen-idle');
+  } else if (phase === 'voting') {
+    show('screen-vote');
+    buildCategoryUI(state);
+    updateCountdown(sheetId);
+  } else if (phase === 'result') {
+    show('screen-result');
+    renderResult(state);
+  }
+}
+
+function updateMeta(sheetId) {
+  const s = sheetsData[sheetId];
+  if (!s) return;
+  document.getElementById('header-meta').textContent =
+    `Sheet ${sheetId} · End ${s.round} · ${s.totalVoters} voter${s.totalVoters !== 1 ? 's' : ''}`;
+}
+
+// ─── Category UI ────────────────────────────────────────────────────────────────
+
+function buildCategoryUI(state) {
+  const container = document.getElementById('categories-container');
+  container.innerHTML = '';
+  const closed = state.phase !== 'voting';
+
+  for (const [catKey, cat] of Object.entries(categories)) {
+    const section = document.createElement('div');
+    section.className = 'category-section';
+    section.innerHTML = `<div class="cat-title">${cat.label}</div>`;
+    const row = document.createElement('div');
+    row.className = 'options-row';
+
+    for (const opt of cat.options) {
+      const btn = document.createElement('button');
+      const cls = colorMap[opt] || '';
+      btn.className = `opt-btn ${cls}${myVotes[catKey] === opt ? ' selected' : ''}${closed ? ' disabled' : ''}`;
+      btn.id = `opt-${catKey}-${opt}`;
+      btn.innerHTML = `${cat.labels[opt]}`;
+      if (!closed) {
+        btn.addEventListener('click', () => castVote(catKey, opt));
+      }
+      row.appendChild(btn);
+    }
+    section.appendChild(row);
+    container.appendChild(section);
+  }
+  updatePickSummary();
+}
+
+function castVote(category, choice) {
+  if (!currentSheet || sheetsData[currentSheet]?.phase !== 'voting') return;
+  socket.emit('vote', { sheetId: currentSheet, category, choice });
+
+  // Optimistic UI
+  const old = myVotes[category];
+  if (old) {
+    const el = document.getElementById(`opt-${category}-${old}`);
+    if (el) el.classList.remove('selected');
+  }
+  myVotes[category] = choice;
+  const el = document.getElementById(`opt-${category}-${choice}`);
+  if (el) el.classList.add('selected');
+  updatePickSummary();
+}
+
+function updatePickSummary() {
+  const parts = [];
+  if (myVotes.type)   parts.push(shotLabels[myVotes.type]);
+  if (myVotes.handle) parts.push(shotLabels[myVotes.handle]);
+  if (myVotes.line)   parts.push(shotLabels[myVotes.line]);
+  document.getElementById('pick-val').textContent = parts.length ? parts.join(' · ') : '—';
+}
+
+// ─── Countdown ───────────────────────────────────────────────────────────────────
+
+function updateCountdown(sheetId) {
+  const s = sheetsData[sheetId];
+  if (!s) return;
+  const t    = s.timeRemaining;
+  const pct  = s.countdown > 0 ? (t / s.countdown * 100) : 0;
+  const bar  = document.getElementById('countdown-bar');
+  const txt  = document.getElementById('countdown-text');
+  if (bar) {
+    bar.style.width = pct + '%';
+    bar.style.background = t > 10 ? 'var(--ice)' : t > 5 ? 'var(--gold)' : 'var(--takeout)';
+  }
+  if (txt) txt.textContent = t + 's';
+}
+
+// ─── Result ──────────────────────────────────────────────────────────────────────
+
+function renderResult(state) {
+  const w = state.winners;
+  document.getElementById('result-shot').textContent   = shotLabels[w.type]   || '—';
+  document.getElementById('result-detail').textContent =
+    `${shotLabels[w.handle] || '—'}  ·  ${shotLabels[w.line] || '—'}`;
+
+  const picked = [myVotes.type, myVotes.handle, myVotes.line].filter(Boolean).map(v => shotLabels[v]).join(' · ');
+  const note = document.getElementById('your-pick-note');
+  note.innerHTML = picked
+    ? `You voted: <strong>${picked}</strong>`
+    : 'You did not cast a vote this end.';
+}
+
+// ─── Back buttons ────────────────────────────────────────────────────────────────
+
+['back-btn', 'back-btn2', 'back-btn3'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', () => {
+    currentSheet = null;
+    myVotes = { type: null, handle: null, line: null };
+    show('screen-sheets');
+    renderSheetGrid();
+  });
+});
+</script>
+</body>
+</html>
