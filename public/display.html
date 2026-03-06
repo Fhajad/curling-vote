@@ -294,7 +294,33 @@
     background: var(--bg2);
     border-top: 1px solid var(--slate);
   }
-  .qr-img { width: 54px; height: 54px; border-radius: 6px; }
+  .qr-img { width: 54px; height: 54px; border-radius: 6px; cursor: pointer; transition: opacity .15s; }
+  .qr-img:hover { opacity: .8; }
+
+  /* ─── QR modal ────────────────────────────── */
+  #qr-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    cursor: pointer;
+  }
+  #qr-modal.open { display: flex; }
+  #qr-modal img { width: min(80vw, 80vh); height: min(80vw, 80vh); border-radius: 12px; image-rendering: pixelated; cursor: default; }
+  #qr-modal .modal-url { font-size: 1rem; color: var(--ice); font-family: monospace; }
+  #qr-modal .modal-hint { font-size: .75rem; color: var(--muted); }
+  @media print {
+    body > *:not(#qr-modal) { display: none !important; }
+    #qr-modal { display: flex !important; background: #fff; position: static; }
+    #qr-modal img { width: 70vmin; height: 70vmin; }
+    #qr-modal .modal-url { color: #000; font-size: 1.2rem; }
+    #qr-modal .modal-hint { display: none; }
+  }
   .connect-info { }
   .connect-label {
     font-size: .65rem;
@@ -379,6 +405,13 @@
 </style>
 </head>
 <body>
+
+<!-- QR modal -->
+<div id="qr-modal" onclick="closeQRModal()">
+  <img id="qr-modal-img" src="" alt="QR Code" onclick="event.stopPropagation()">
+  <div class="modal-url" id="qr-modal-url"></div>
+  <div class="modal-hint">Click anywhere to close &nbsp;·&nbsp; <span style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();window.print()">Print</span></div>
+</div>
 
 <div id="setup-overlay">
   <div class="spinner"></div>
@@ -475,10 +508,24 @@ function applySetup(names, sheets) {
 
 function applyQR(qr) {
   document.getElementById('qr-img').src = qr.dataUrl;
+  document.getElementById('qr-modal-img').src = qr.dataUrl;
+  document.getElementById('qr-modal-url').textContent = qr.url;
   // Show base URL without token for cleanliness — actual URL is in the QR
   const base = qr.url.split('/vote')[0];
   document.getElementById('connect-url').textContent = base + '/vote';
 }
+
+function closeQRModal() {
+  document.getElementById('qr-modal').classList.remove('open');
+}
+
+document.getElementById('qr-img').addEventListener('click', () => {
+  document.getElementById('qr-modal').classList.add('open');
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeQRModal();
+});
 
 // ─── Grid ───────────────────────────────────────────────────────────────────────
 

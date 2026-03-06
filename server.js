@@ -93,7 +93,7 @@ function initSheets(names, sheetColors = {}) {
 
 async function buildQR() {
   const url = `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}`;
-  const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2, color: { dark: '#0a1628', light: '#e8f4f8' } });
+  const dataUrl = await QRCode.toDataURL(url, { width: 800, margin: 2, color: { dark: '#0a1628', light: '#e8f4f8' } });
   return { url, dataUrl };
 }
 
