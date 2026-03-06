@@ -657,7 +657,7 @@ function buildVotingHTML(sheetId) {
           ${dotsHTML}
           <div class="line-avg-marker-disp" id="lavg-${sheetId}"${avgLeft ? ` style="display:block;left:${avgLeft}"` : ''}></div>
         </div>
-        <div class="line-distrib-labels"><span>2'</span><span>4'</span><span>6'</span><span>8'</span><span>10'</span><span>12'</span></div>
+        <div class="line-distrib-labels"><span>Center</span><span>2'</span><span>4'</span><span>6'</span><span>8'</span><span>10'</span><span>12'</span></div>
         <div style="font-size:.6rem;color:var(--muted);text-align:right;margin-top:2px" id="lcount-${sheetId}">${s.lineCount || 0} vote${s.lineCount !== 1 ? 's' : ''}</div>`;
     } else {
       const total = Object.values(s.votes[catKey]).reduce((a,b) => a+b, 0);
@@ -778,7 +778,7 @@ const shotLabels = {
 
 function formatLineResult(pos) {
   if (pos === null || pos === undefined) return '—';
-  const totalFt = 2 + pos * 10;
+  const totalFt = pos * 12;
   const feet = Math.floor(totalFt);
   const inches = Math.round((totalFt - feet) * 12);
   return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;

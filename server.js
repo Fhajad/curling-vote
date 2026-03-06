@@ -13,7 +13,7 @@ const QRCode = require('qrcode');
 const ADMIN_TOKEN          = process.env.ADMIN_TOKEN || 'admin-change-me';
 let   VOTER_TOKEN          = process.env.VOTER_TOKEN || crypto.randomBytes(16).toString('hex');
 const PUBLIC_URL           = (process.env.PUBLIC_URL || 'http://localhost').replace(/\/$/, '');
-const VOTER_TOKEN_REQUIRED = process.env.VOTER_TOKEN_REQUIRED !== 'false';
+const VOTER_TOKEN_REQUIRED = process.env.VOTER_TOKEN_REQUIRED === 'true';
 
 const SSL_KEY  = process.env.SSL_KEY;
 const SSL_CERT = process.env.SSL_CERT;
@@ -92,7 +92,7 @@ function initSheets(names, sheetColors = {}) {
 // ─── QR Code ───────────────────────────────────────────────────────────────────
 
 async function buildQR() {
-  const url = `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}`;
+  const url = VOTER_TOKEN_REQUIRED ? `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}` : `${PUBLIC_URL}/vote`;
   const dataUrl = await QRCode.toDataURL(url, { width: 800, margin: 2, color: { dark: '#0a1628', light: '#e8f4f8' } });
   return { url, dataUrl };
 }
@@ -429,12 +429,12 @@ function broadcastLineUpdate(sheetId) {
 
 const PORT = USE_SSL ? 443 : 80;
 server.listen(PORT, () => {
-  const voterUrl = `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}`;
+  const voterUrl = VOTER_TOKEN_REQUIRED ? `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}` : `${PUBLIC_URL}/vote`;
   console.log('\n=== Curling Vote ===');
   console.log(`Mode    : ${USE_SSL ? 'HTTPS' : 'HTTP'} on port ${PORT}`);
   console.log(`Display : ${PUBLIC_URL}/display.html`);
   console.log(`Admin   : ${PUBLIC_URL}/admin.html`);
-  console.log(`Voter   : ${voterUrl}`);
+  console.log(`Voter   : ${voterUrl}${VOTER_TOKEN_REQUIRED ? '' : '  (open access)'}`);
   console.log(`Admin token: ${ADMIN_TOKEN}`);
   console.log('====================\n');
 });

@@ -564,7 +564,7 @@ let lineBarDebounceTimer = null;
 function buildLineTapBar(closed) {
   const markerLeft = myLinePos !== null ? (myLinePos * 100).toFixed(2) + '%' : null;
   const opacity = closed ? '0.45' : '1';
-  const labels = ["2'", "4'", "6'", "8'", "10'", "12'"];
+  const labels = ["Center", "2'", "4'", "6'", "8'", "10'", "12'"];
   const labelHTML = labels.map((l, i) => {
     const pct = (i / (labels.length - 1) * 100).toFixed(1);
     return `<span style="position:absolute;left:${pct}%;transform:translateX(-50%);font-size:.68rem;color:var(--muted);white-space:nowrap">${l}</span>`;
@@ -720,7 +720,7 @@ function castVote(category, choice) {
 
 function formatFtIn(pos) {
   if (pos === null || pos === undefined) return '—';
-  const ft = 2 + pos * 10;
+  const ft = pos * 12;
   const feet = Math.floor(ft);
   const inches = Math.round((ft - feet) * 12);
   return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;

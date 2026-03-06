@@ -848,7 +848,7 @@ function renderMiniBars(sheetId) {
 
 function formatFtIn(pos) {
   if (pos === null || pos === undefined) return '—';
-  const ft = 2 + pos * 10;
+  const ft = pos * 12;
   const feet = Math.floor(ft);
   const inches = Math.round((ft - feet) * 12);
   return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;
