@@ -374,6 +374,7 @@ let sheetsData  = {};   // sheetId → public state
 let categories  = {};
 let currentSheet = null;
 let myVotes     = { type: null, handle: null, line: null };
+let myCurrentRound = null;
 const stoneColorCSS = { red:'#ef5350', yellow:'#ffd700', blue:'#42a5f5', black:'#555', green:'#66bb6a', white:'#e8f4f8' };
 const stoneColorName = { red:'Red', yellow:'Yellow', blue:'Blue', black:'Black', green:'Green', white:'White' };
 
@@ -417,6 +418,7 @@ socket.on('sheet-joined', state => {
   sheetsData[state.sheetId] = state;
   currentSheet = state.sheetId;
   myVotes = { type: null, handle: null, line: null };
+  myCurrentRound = state.round;
   showSheetView(state);
 });
 
@@ -424,6 +426,10 @@ socket.on('state-update', state => {
   sheetsData[state.sheetId] = state;
   updateSheetBtn(state.sheetId);
   if (state.sheetId === currentSheet) {
+    if (state.phase === 'voting' && state.round !== myCurrentRound) {
+      myVotes = { type: null, handle: null, line: null };
+      myCurrentRound = state.round;
+    }
     showSheetView(state);
   }
 });
@@ -451,6 +457,7 @@ socket.on('vote-ack', ({ category, choice }) => {
 socket.on('full-reset', () => {
   currentSheet = null;
   myVotes = { type: null, handle: null, line: null };
+  myCurrentRound = null;
   sheetNames = [];
   sheetsData = {};
   show('screen-waiting');
@@ -625,6 +632,7 @@ function renderResult(state) {
   document.getElementById(id)?.addEventListener('click', () => {
     currentSheet = null;
     myVotes = { type: null, handle: null, line: null };
+    myCurrentRound = null;
     show('screen-sheets');
     renderSheetGrid();
   });
