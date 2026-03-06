@@ -23,6 +23,12 @@ const USE_SSL  = !!(SSL_KEY && SSL_CERT && fs.existsSync(SSL_KEY) && fs.existsSy
 const app = express();
 app.use(express.static('public'));
 
+// /vote with no token → friendly redirect to index
+app.get('/vote', (req, res) => {
+  if (!req.query.t) return res.redirect('/');
+  res.sendFile('voter.html', { root: 'public' });
+});
+
 // HTTP → HTTPS redirect when SSL is active
 if (USE_SSL) {
   const redirectApp = express();

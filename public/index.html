@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curling Vote</title>
+<style>
+  :root {
+    --bg:   #080e1c;
+    --bg2:  #0f1a2e;
+    --ice:  #4fc3f7;
+    --slate:#1e2d45;
+    --text: #e8f4f8;
+    --muted:#7a9ab5;
+    --gold: #ffd700;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+  .logo {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    color: var(--ice);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .logo span { color: var(--text); }
+  .tagline {
+    font-size: .9rem;
+    color: var(--muted);
+    margin-bottom: 48px;
+    text-align: center;
+  }
+  .cards {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 700px;
+  }
+  .card {
+    background: var(--bg2);
+    border: 2px solid var(--slate);
+    border-radius: 16px;
+    padding: 28px 24px;
+    flex: 1;
+    min-width: 180px;
+    max-width: 220px;
+    text-decoration: none;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    transition: border-color .2s, transform .15s;
+    text-align: center;
+  }
+  .card:hover { transform: translateY(-3px); }
+  .card.display { border-color: var(--ice); }
+  .card.admin   { border-color: var(--gold); }
+  .card.voter   { border-color: #66bb6a; }
+  .card-icon { font-size: 2.4rem; }
+  .card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .card.display .card-title { color: var(--ice); }
+  .card.admin   .card-title { color: var(--gold); }
+  .card.voter   .card-title { color: #66bb6a; }
+  .card-desc { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="logo">Curling <span>Vote</span></div>
+  <div class="tagline">Crowd-powered shot calling for your sheet</div>
+
+  <div class="cards">
+    <a class="card display" href="/display.html">
+      <div class="card-icon">📺</div>
+      <div class="card-title">Display</div>
+      <div class="card-desc">Big screen view for the TV or projector at the venue</div>
+    </a>
+    <a class="card admin" href="/admin.html">
+      <div class="card-icon">🎛️</div>
+      <div class="card-title">Admin</div>
+      <div class="card-desc">Organizer controls — start ends, track votes, confirm throws</div>
+    </a>
+    <a class="card voter" href="/vote">
+      <div class="card-icon">🥌</div>
+      <div class="card-title">Vote</div>
+      <div class="card-desc">Participant view — scan the QR code at the venue to access</div>
+    </a>
+  </div>
+</body>
+</html>
