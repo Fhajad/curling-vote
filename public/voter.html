@@ -428,6 +428,7 @@ socket.on('state-update', state => {
   if (state.sheetId === currentSheet) {
     if (state.phase === 'voting' && state.round !== myCurrentRound) {
       myVotes = { type: null, handle: null, line: null };
+      myLinePos = null;
       myCurrentRound = state.round;
     }
     showSheetView(state);
@@ -454,9 +455,22 @@ socket.on('vote-ack', ({ category, choice }) => {
   updatePickSummary();
 });
 
+socket.on('vote-line-ack', ({ position }) => {
+  myLinePos = position;
+  myVotes.line = position;
+  updatePickSummary();
+});
+
+socket.on('line-update', ({ sheetId, positions, avg }) => {
+  if (sheetId !== currentSheet) return;
+  updateLineDots(positions);
+  updateLineAvgMarker(avg);
+});
+
 socket.on('full-reset', () => {
   currentSheet = null;
   myVotes = { type: null, handle: null, line: null };
+  myLinePos = null;
   myCurrentRound = null;
   sheetNames = [];
   sheetsData = {};
@@ -517,6 +531,7 @@ function showSheetView(state) {
   } else if (phase === 'voting') {
     show('screen-vote');
     buildCategoryUI(state);
+    initLineTapBar();
     updateCountdown(sheetId);
   } else if (phase === 'result') {
     show('screen-result');
@@ -542,36 +557,117 @@ function updateMeta(sheetId) {
 
 // ─── Category UI ────────────────────────────────────────────────────────────────
 
-function buildHouseDiagram(catKey, closed, selectedOpt) {
-  const rings = [
-    { opt: '12', r: 90, fill: '#c8d4e4', textFill: '#2a3a4a' },
-    { opt: '8',  r: 66, fill: '#3a72b8', textFill: '#ffffff' },
-    { opt: '4',  r: 42, fill: '#c8d4e4', textFill: '#2a3a4a' },
-    { opt: '2',  r: 22, fill: '#c84040', textFill: '#ffffff' },
-  ];
-  const bandMid = { '12': 78, '8': 54, '4': 32, '2': 11 };
-  let svg = '';
-  for (const ring of rings) {
-    const sel = selectedOpt === ring.opt;
-    svg += `<circle cx="100" cy="100" r="${ring.r}"
-      fill="${ring.fill}"
-      stroke="${sel ? '#ffd700' : 'rgba(255,255,255,0.15)'}"
-      stroke-width="${sel ? '5' : '1.5'}"
-      id="house-ring-${catKey}-${ring.opt}"
-      ${!closed ? `onclick="castVote('${catKey}','${ring.opt}')"` : ''}
-      style="${!closed ? 'cursor:pointer;' : 'opacity:.5;'}"/>`;
+let myLinePos = null;   // voter's own position 0–1
+let lineBarDragging = false;
+let lineBarDebounceTimer = null;
+
+function buildLineTapBar(closed) {
+  const markerLeft = myLinePos !== null ? (myLinePos * 100).toFixed(2) + '%' : null;
+  const opacity = closed ? '0.45' : '1';
+  const labels = ["2'", "4'", "6'", "8'", "10'", "12'"];
+  const labelHTML = labels.map((l, i) => {
+    const pct = (i / (labels.length - 1) * 100).toFixed(1);
+    return `<span style="position:absolute;left:${pct}%;transform:translateX(-50%);font-size:.68rem;color:var(--muted);white-space:nowrap">${l}</span>`;
+  }).join('');
+
+  return `
+    <div id="line-bar-wrap" style="position:relative;width:100%;opacity:${opacity}">
+      <!-- dot cloud (other voters) -->
+      <div id="line-dots" style="position:relative;height:28px;width:100%;margin-bottom:4px"></div>
+      <!-- tap/drag bar -->
+      <div id="line-bar" style="
+        position:relative;width:100%;height:48px;border-radius:10px;
+        background:linear-gradient(90deg,#c84040 0%,#c8d4e4 35%,#3a72b8 65%,#c8d4e4 85%,#c84040 100%);
+        box-shadow:0 3px 12px rgba(0,0,0,.5);
+        ${!closed ? 'cursor:crosshair;touch-action:none;' : 'pointer-events:none;'}
+        overflow:visible;
+      ">
+        <!-- foot markers -->
+        ${[0,20,40,60,80,100].map(p => `<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.2);pointer-events:none"></div>`).join('')}
+        <!-- avg marker (grey, other voters) -->
+        <div id="line-avg-marker" style="display:none;position:absolute;top:-6px;bottom:-6px;width:3px;background:rgba(255,255,255,.4);border-radius:2px;transform:translateX(-50%);pointer-events:none"></div>
+        <!-- your marker (gold) -->
+        ${markerLeft !== null ? `<div id="line-my-marker" style="position:absolute;left:${markerLeft};top:50%;transform:translate(-50%,-50%);width:18px;height:18px;background:#ffd700;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px rgba(255,215,0,.7);pointer-events:none"></div>` : `<div id="line-my-marker" style="display:none;position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;background:#ffd700;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px rgba(255,215,0,.7);pointer-events:none"></div>`}
+      </div>
+      <!-- foot labels -->
+      <div style="position:relative;height:20px;margin-top:4px">${labelHTML}</div>
+    </div>`;
+}
+
+function initLineTapBar() {
+  const bar = document.getElementById('line-bar');
+  if (!bar) return;
+
+  function getPos(e) {
+    const rect = bar.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
   }
-  svg += `<circle cx="100" cy="100" r="3" fill="rgba(255,255,255,.7)" pointer-events="none"/>`;
-  for (const ring of rings) {
-    const y = 100 - bandMid[ring.opt] + 5;
-    svg += `<text x="100" y="${y}" text-anchor="middle" font-size="13" font-weight="800"
-      fill="${ring.textFill}" pointer-events="none"
-      style="font-family:system-ui,sans-serif">${ring.opt}'</text>`;
+
+  function emitLinePos(pos) {
+    if (!currentSheet) return;
+    socket.emit('vote-line', { sheetId: currentSheet, position: pos });
   }
-  return `<div style="display:flex;justify-content:center">
-    <svg viewBox="0 0 200 200" width="190" height="190"
-      style="display:block;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))">${svg}</svg>
-  </div>`;
+
+  function updateMyMarker(pos) {
+    const marker = document.getElementById('line-my-marker');
+    if (!marker) return;
+    marker.style.display = 'block';
+    marker.style.left = (pos * 100).toFixed(2) + '%';
+    myLinePos = pos;
+    updatePickSummary();
+  }
+
+  function onMove(e) {
+    if (!lineBarDragging) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    updateMyMarker(pos);
+    clearTimeout(lineBarDebounceTimer);
+    lineBarDebounceTimer = setTimeout(() => emitLinePos(pos), 60);
+  }
+
+  function onEnd(e) {
+    if (!lineBarDragging) return;
+    lineBarDragging = false;
+    const pos = myLinePos;
+    if (pos !== null) { clearTimeout(lineBarDebounceTimer); emitLinePos(pos); }
+  }
+
+  bar.addEventListener('mousedown', e => {
+    lineBarDragging = true;
+    const pos = getPos(e);
+    updateMyMarker(pos);
+  });
+  bar.addEventListener('touchstart', e => {
+    lineBarDragging = true;
+    const pos = getPos(e);
+    updateMyMarker(pos);
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('mouseup', onEnd);
+  document.addEventListener('touchend', onEnd);
+}
+
+function updateLineDots(positions) {
+  const container = document.getElementById('line-dots');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const pos of positions) {
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;left:${(pos*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:rgba(79,195,247,.7);border-radius:50%;pointer-events:none`;
+    container.appendChild(dot);
+  }
+}
+
+function updateLineAvgMarker(avg) {
+  const marker = document.getElementById('line-avg-marker');
+  if (!marker) return;
+  if (avg === null) { marker.style.display = 'none'; return; }
+  marker.style.display = 'block';
+  marker.style.left = (avg * 100).toFixed(2) + '%';
 }
 
 function buildCategoryUI(state) {
@@ -584,8 +680,8 @@ function buildCategoryUI(state) {
     section.className = 'category-section';
     section.innerHTML = `<div class="cat-title">${cat.label}</div>`;
 
-    if (catKey === 'line') {
-      section.insertAdjacentHTML('beforeend', buildHouseDiagram(catKey, closed, myVotes[catKey]));
+    if (cat.continuous) {
+      section.insertAdjacentHTML('beforeend', buildLineTapBar(closed));
     } else {
       const row = document.createElement('div');
       row.className = 'options-row';
@@ -609,29 +705,30 @@ function castVote(category, choice) {
   if (!currentSheet || sheetsData[currentSheet]?.phase !== 'voting') return;
   socket.emit('vote', { sheetId: currentSheet, category, choice });
 
-  // Optimistic UI — buttons
+  // Optimistic UI
   const old = myVotes[category];
   if (old) {
     const el = document.getElementById(`opt-${category}-${old}`);
     if (el) el.classList.remove('selected');
-    // House ring
-    const oldRing = document.getElementById(`house-ring-${category}-${old}`);
-    if (oldRing) { oldRing.setAttribute('stroke', 'rgba(255,255,255,0.15)'); oldRing.setAttribute('stroke-width', '1.5'); }
   }
   myVotes[category] = choice;
   const el = document.getElementById(`opt-${category}-${choice}`);
   if (el) el.classList.add('selected');
-  // House ring
-  const newRing = document.getElementById(`house-ring-${category}-${choice}`);
-  if (newRing) { newRing.setAttribute('stroke', '#ffd700'); newRing.setAttribute('stroke-width', '5'); }
   updatePickSummary();
+}
+
+function formatFtIn(pos) {
+  const ft = 2 + pos * 10;
+  const feet = Math.floor(ft);
+  const inches = Math.round((ft - feet) * 12);
+  return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;
 }
 
 function updatePickSummary() {
   const parts = [];
   if (myVotes.type)   parts.push(shotLabels[myVotes.type]);
   if (myVotes.handle) parts.push(shotLabels[myVotes.handle]);
-  if (myVotes.line)   parts.push(shotLabels[myVotes.line]);
+  if (myLinePos !== null) parts.push(formatFtIn(myLinePos));
   document.getElementById('pick-val').textContent = parts.length ? parts.join(' · ') : '—';
 }
 
@@ -672,6 +769,7 @@ function renderResult(state) {
   document.getElementById(id)?.addEventListener('click', () => {
     currentSheet = null;
     myVotes = { type: null, handle: null, line: null };
+    myLinePos = null;
     myCurrentRound = null;
     show('screen-sheets');
     renderSheetGrid();

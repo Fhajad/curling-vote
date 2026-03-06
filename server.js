@@ -52,7 +52,7 @@ const io = new Server(server);
 const VOTE_CATEGORIES = {
   type:   { label: 'Shot Type', options: ['guard', 'draw', 'takeout'], labels: { guard: 'Guard', draw: 'Draw', takeout: 'Takeout' } },
   handle: { label: 'Handle',    options: ['in', 'out'],                labels: { in: 'In Turn (L)', out: 'Out Turn (R)' } },
-  line:   { label: 'Line',      options: ['12', '8', '4', '2'],       labels: { '12': "12'", '8': "8'", '4': "4'", '2': "2'" } },
+  line:   { label: 'Line',      continuous: true },  // stored as float 0–1, not discrete
 };
 
 // ─── App State ─────────────────────────────────────────────────────────────────
@@ -73,8 +73,8 @@ function makeSheetState(colors = ['red', 'yellow']) {
     votes: {
       type:   { guard: 0, draw: 0, takeout: 0 },
       handle: { in: 0, out: 0 },
-      line:   { '12': 0, '8': 0, '4': 0, '2': 0 },
     },
+    linePositions: new Map(),  // socketId → float 0–1 (2' to 12' range)
     winners: { type: null, handle: null, line: null },
     voterState: new Map(),  // socketId → { type, handle, line }
     timer: null,
@@ -103,7 +103,6 @@ function emptyVotes() {
   return {
     type:   { guard: 0, draw: 0, takeout: 0 },
     handle: { in: 0, out: 0 },
-    line:   { '12': 0, '8': 0, '4': 0, '2': 0 },
   };
 }
 
@@ -131,10 +130,14 @@ function endVoting(sheetId) {
   sheet.timer = null;
   sheet.phase = 'result';
   sheet.timeRemaining = 0;
+  const linePos = [...sheet.linePositions.values()];
+  const lineAvg = linePos.length > 0
+    ? linePos.reduce((a, b) => a + b, 0) / linePos.length
+    : null;
   sheet.winners = {
     type:   findWinner(sheet.votes.type),
     handle: findWinner(sheet.votes.handle),
-    line:   findWinner(sheet.votes.line),
+    line:   lineAvg,   // float 0–1, null if no votes
   };
   io.to(`sheet:${sheetId}`).emit('state-update', publicSheet(sheetId));
   io.to('admin').emit('state-update', publicSheet(sheetId));
@@ -147,6 +150,7 @@ function publicSheet(sheetId) {
   const s = sheets[sheetId];
   if (!s) return null;
   const totalVoters = s.voterState.size;
+  const linePos = [...s.linePositions.values()];
   return {
     sheetId,
     phase: s.phase,
@@ -156,6 +160,8 @@ function publicSheet(sheetId) {
     colors: s.colors,
     stoneColor: s.colors[(s.round === 0 ? 0 : (s.round - 1) % 2)],  // auto-alternates
     votes: s.votes,
+    lineAvg: linePos.length > 0 ? linePos.reduce((a, b) => a + b, 0) / linePos.length : null,
+    lineCount: linePos.length,
     winners: s.winners,
     totalVoters,
     categories: VOTE_CATEGORIES,
@@ -240,6 +246,7 @@ io.on('connection', async (socket) => {
         state.type = null; state.handle = null; state.line = null;
       }
       sheet.votes = emptyVotes();
+      sheet.linePositions.clear();
       sheet.winners = { type: null, handle: null, line: null };
       sheet.phase = 'voting';
       sheet.round++;
@@ -315,15 +322,19 @@ io.on('connection', async (socket) => {
     // Leave any previous sheet rooms
     for (const name of sheetNames) {
       socket.leave(`sheet:${name}`);
-      // Remove old voter state
       if (sheets[name]) {
         const old = sheets[name].voterState.get(socket.id);
         if (old) {
-          // Roll back any live votes
-          for (const cat of ['type', 'handle', 'line']) {
+          // Roll back type/handle votes
+          for (const cat of ['type', 'handle']) {
             if (old[cat]) {
               sheets[name].votes[cat][old[cat]] = Math.max(0, sheets[name].votes[cat][old[cat]] - 1);
             }
+          }
+          // Roll back line position
+          if (sheets[name].linePositions.has(socket.id)) {
+            sheets[name].linePositions.delete(socket.id);
+            broadcastLineUpdate(name);
           }
           sheets[name].voterState.delete(socket.id);
           broadcastVotes(name);
@@ -336,11 +347,11 @@ io.on('connection', async (socket) => {
     socket.emit('sheet-joined', publicSheet(sheetId));
   });
 
-  // Live vote — called when voter taps an option in any category
+  // Live vote — called when voter taps an option (type/handle only; line uses vote-line)
   socket.on('vote', ({ sheetId, category, choice }) => {
     const sheet = sheets[sheetId];
     if (!sheet || sheet.phase !== 'voting') return;
-    if (!VOTE_CATEGORIES[category]) return;
+    if (!VOTE_CATEGORIES[category] || VOTE_CATEGORIES[category].continuous) return;
     if (!VOTE_CATEGORIES[category].options.includes(choice)) return;
 
     const voterCurrent = sheet.voterState.get(socket.id);
@@ -354,14 +365,32 @@ io.on('connection', async (socket) => {
     broadcastVotes(sheetId);
   });
 
+  // Continuous line vote — voter taps/drags; position is float 0–1
+  socket.on('vote-line', ({ sheetId, position }) => {
+    const sheet = sheets[sheetId];
+    if (!sheet || sheet.phase !== 'voting') return;
+    const pos = Math.min(1, Math.max(0, parseFloat(position)));
+    if (isNaN(pos)) return;
+    const voterCurrent = sheet.voterState.get(socket.id);
+    if (!voterCurrent) return;
+    voterCurrent.line = pos;
+    sheet.linePositions.set(socket.id, pos);
+    socket.emit('vote-line-ack', { position: pos });
+    broadcastLineUpdate(sheetId);
+  });
+
   socket.on('disconnect', () => {
     for (const [sheetId, sheet] of Object.entries(sheets)) {
       const state = sheet.voterState.get(socket.id);
       if (state) {
-        for (const cat of ['type', 'handle', 'line']) {
+        for (const cat of ['type', 'handle']) {
           if (state[cat]) {
             sheet.votes[cat][state[cat]] = Math.max(0, sheet.votes[cat][state[cat]] - 1);
           }
+        }
+        if (sheet.linePositions.has(socket.id)) {
+          sheet.linePositions.delete(socket.id);
+          broadcastLineUpdate(sheetId);
         }
         sheet.voterState.delete(socket.id);
         broadcastVotes(sheetId);
@@ -381,6 +410,19 @@ function broadcastVotes(sheetId) {
   io.to(`sheet:${sheetId}`).emit('votes-update', payload);
   io.to('admin').emit('votes-update', payload);
   io.to('display').emit('votes-update', payload);
+}
+
+function broadcastLineUpdate(sheetId) {
+  const sheet = sheets[sheetId];
+  if (!sheet) return;
+  const positions = [...sheet.linePositions.values()];
+  const avg = positions.length > 0
+    ? positions.reduce((a, b) => a + b, 0) / positions.length
+    : null;
+  const payload = { sheetId, positions, avg };
+  io.to(`sheet:${sheetId}`).emit('line-update', payload);
+  io.to('admin').emit('line-update', payload);
+  io.to('display').emit('line-update', payload);
 }
 
 // ─── Start ─────────────────────────────────────────────────────────────────────

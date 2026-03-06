@@ -333,6 +333,33 @@
     animation: spin 1s linear infinite;
   }
 
+  /* ─── Line distribution bar (display) ───────── */
+  .line-distrib-bar {
+    position: relative;
+    height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(90deg,#c84040 0%,#c8d4e4 35%,#3a72b8 65%,#c8d4e4 85%,#c84040 100%);
+    overflow: visible;
+    margin-bottom: 3px;
+  }
+  .line-distrib-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: .55rem;
+    color: var(--muted);
+  }
+  .line-avg-marker-disp {
+    position: absolute;
+    top: -5px; bottom: -5px;
+    width: 3px;
+    background: #ffd700;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    box-shadow: 0 0 8px rgba(255,215,0,.6);
+    display: none;
+    pointer-events: none;
+  }
+
   .stone-area {
     display: flex;
     flex-direction: column;
@@ -382,6 +409,7 @@ const socket = io({ query: { role: 'display' } });
 let sheetNames = [];
 let sheetsData  = {};   // sheetId → public state
 let categories  = {};
+let lineData    = {};   // sheetId → { positions: [], avg: null }
 
 // ─── Socket events ─────────────────────────────────────────────────────────────
 
@@ -420,9 +448,15 @@ socket.on('timer-tick', ({ sheetId, timeRemaining }) => {
 
 socket.on('qr-update', applyQR);
 
+socket.on('line-update', ({ sheetId, positions, avg }) => {
+  lineData[sheetId] = { positions, avg };
+  updateLineDistrib(sheetId);
+});
+
 socket.on('full-reset', () => {
   sheetsData = {};
   sheetNames = [];
+  lineData = {};
   document.getElementById('setup-overlay').style.display = 'flex';
   document.getElementById('grid').innerHTML = '';
   document.getElementById('sheet-tabs').innerHTML = '';
@@ -563,21 +597,36 @@ function buildVotingHTML(sheetId) {
 
   let barsHTML = '';
   for (const [catKey, cat] of Object.entries(categories)) {
-    barsHTML += `<div class="category-block">
-      <div class="cat-label">${cat.label}</div>`;
-    const total = Object.values(s.votes[catKey]).reduce((a,b) => a+b, 0);
-    for (const opt of cat.options) {
-      const count = s.votes[catKey][opt] || 0;
-      const pct   = total > 0 ? Math.round(count / total * 100) : 0;
-      const cls   = colorMap[opt] || '';
+    barsHTML += `<div class="category-block"><div class="cat-label">${cat.label}</div>`;
+    if (cat.continuous) {
+      // Line: render distribution bar
+      const ld = lineData[sheetId] || { positions: [], avg: null };
+      const avgLeft = ld.avg !== null ? (ld.avg * 100).toFixed(2) + '%' : null;
+      const dotsHTML = ld.positions.map(p =>
+        `<div style="position:absolute;left:${(p*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:rgba(79,195,247,.8);border-radius:50%;pointer-events:none"></div>`
+      ).join('');
       barsHTML += `
-        <div class="bar-row">
-          <div class="bar-label">${cat.labels[opt]}</div>
-          <div class="bar-track">
-            <div class="bar-fill ${cls}" id="bar-${sheetId}-${catKey}-${opt}" style="width:${pct}%"></div>
-          </div>
-          <div class="bar-meta" id="meta-${sheetId}-${catKey}-${opt}">${count} <span style="color:#4a6a85">(${pct}%)</span></div>
-        </div>`;
+        <div class="line-distrib-bar" id="ldbar-${sheetId}">
+          ${dotsHTML}
+          <div class="line-avg-marker-disp" id="lavg-${sheetId}"${avgLeft ? ` style="display:block;left:${avgLeft}"` : ''}></div>
+        </div>
+        <div class="line-distrib-labels"><span>2'</span><span>4'</span><span>6'</span><span>8'</span><span>10'</span><span>12'</span></div>
+        <div style="font-size:.6rem;color:var(--muted);text-align:right;margin-top:2px" id="lcount-${sheetId}">${s.lineCount || 0} vote${s.lineCount !== 1 ? 's' : ''}</div>`;
+    } else {
+      const total = Object.values(s.votes[catKey]).reduce((a,b) => a+b, 0);
+      for (const opt of cat.options) {
+        const count = s.votes[catKey][opt] || 0;
+        const pct   = total > 0 ? Math.round(count / total * 100) : 0;
+        const cls   = colorMap[opt] || '';
+        barsHTML += `
+          <div class="bar-row">
+            <div class="bar-label">${cat.labels[opt]}</div>
+            <div class="bar-track">
+              <div class="bar-fill ${cls}" id="bar-${sheetId}-${catKey}-${opt}" style="width:${pct}%"></div>
+            </div>
+            <div class="bar-meta" id="meta-${sheetId}-${catKey}-${opt}">${count} <span style="color:#4a6a85">(${pct}%)</span></div>
+          </div>`;
+      }
     }
     barsHTML += `</div>`;
   }
@@ -614,6 +663,7 @@ function renderVoteBars(sheetId) {
   const s = sheetsData[sheetId];
   if (!s || s.phase !== 'voting') return;
   for (const [catKey, cat] of Object.entries(categories)) {
+    if (cat.continuous) continue;  // line handled by updateLineDistrib
     const total = Object.values(s.votes[catKey]).reduce((a,b) => a+b, 0);
     for (const opt of cat.options) {
       const count = s.votes[catKey][opt] || 0;
@@ -624,6 +674,35 @@ function renderVoteBars(sheetId) {
       if (meta) meta.innerHTML = `${count} <span style="color:#4a6a85">(${pct}%)</span>`;
     }
   }
+}
+
+function updateLineDistrib(sheetId) {
+  const s = sheetsData[sheetId];
+  if (!s || s.phase !== 'voting') return;
+  const ld = lineData[sheetId] || { positions: [], avg: null };
+  const bar = document.getElementById(`ldbar-${sheetId}`);
+  const avgMarker = document.getElementById(`lavg-${sheetId}`);
+  const countEl = document.getElementById(`lcount-${sheetId}`);
+  if (!bar) return;
+
+  // Rebuild dots
+  const existingDots = bar.querySelectorAll('.ldot');
+  existingDots.forEach(d => d.remove());
+  for (const p of ld.positions) {
+    const dot = document.createElement('div');
+    dot.className = 'ldot';
+    dot.style.cssText = `position:absolute;left:${(p*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:rgba(79,195,247,.8);border-radius:50%;pointer-events:none`;
+    bar.appendChild(dot);
+  }
+  if (avgMarker) {
+    if (ld.avg !== null) {
+      avgMarker.style.display = 'block';
+      avgMarker.style.left = (ld.avg * 100).toFixed(2) + '%';
+    } else {
+      avgMarker.style.display = 'none';
+    }
+  }
+  if (countEl) countEl.textContent = `${ld.positions.length} vote${ld.positions.length !== 1 ? 's' : ''}`;
 }
 
 function updateCountdown(sheetId) {
@@ -648,14 +727,21 @@ function updateCountdown(sheetId) {
 const shotLabels = {
   guard: 'Guard', draw: 'Draw', takeout: 'Takeout',
   in: 'In Turn (L)', out: 'Out Turn (R)',
-  '12': "12'", '8': "8'", '4': "4'", '2': "2'",
 };
+
+function formatLineResult(pos) {
+  if (pos === null || pos === undefined) return '—';
+  const totalFt = 2 + pos * 10;
+  const feet = Math.floor(totalFt);
+  const inches = Math.round((totalFt - feet) * 12);
+  return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;
+}
 
 function buildResultHTML(s) {
   const w = s.winners;
   const type   = w.type   ? shotLabels[w.type]   : '—';
   const handle = w.handle ? shotLabels[w.handle] : '—';
-  const line   = w.line   ? shotLabels[w.line]   : '—';
+  const line   = formatLineResult(w.line);
 
   const sz = sheetNames.length === 1 ? 160 : sheetNames.length === 2 ? 120 : 90;
   const stoneEl = s.stoneColor && s.round > 0
