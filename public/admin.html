@@ -317,6 +317,19 @@
     font-size: .7rem;
     color: var(--muted);
   }
+  /* Stone color picker */
+  .color-picker { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .color-swatch {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+    flex-shrink: 0;
+  }
+  .color-swatch:active { transform: scale(.9); }
+  .color-swatch.active { border-color: #fff; }
+  .color-label { font-size: .72rem; color: var(--muted); margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -455,6 +468,11 @@ function connect() {
   socket.on('state-update', state => {
     sheetsData[state.sheetId] = state;
     renderCard(state.sheetId);
+    // sync swatch highlight in case color changed externally
+    for (const c of STONE_COLORS) {
+      const sw = document.getElementById(`swatch-${state.sheetId}-${c.id}`);
+      if (sw) sw.classList.toggle('active', c.id === state.stoneColor);
+    }
   });
 
   socket.on('votes-update', ({ sheetId, votes, totalVoters }) => {
@@ -603,9 +621,18 @@ function renderCard(sheetId) {
   renderCardBody(sheetId, body, s);
 }
 
+const STONE_COLORS = [
+  { id: 'red',    css: '#ef5350', label: 'Red'    },
+  { id: 'yellow', css: '#ffd700', label: 'Yellow' },
+  { id: 'blue',   css: '#42a5f5', label: 'Blue'   },
+  { id: 'black',  css: '#555',    label: 'Black'  },
+  { id: 'green',  css: '#66bb6a', label: 'Green'  },
+  { id: 'white',  css: '#e8f4f8', label: 'White'  },
+];
+
 function phaseBadgeLabel(phase, round) {
-  if (phase === 'voting') return `End ${round} · Voting`;
-  if (phase === 'result') return `End ${round} · Done`;
+  if (phase === 'voting') return `Stone ${round} · Voting`;
+  if (phase === 'result') return `Stone ${round} · Done`;
   return 'Idle';
 }
 
@@ -645,11 +672,36 @@ function renderCardBody(sheetId, container, s) {
     container.appendChild(res);
   }
 
+  // Stone color picker (always visible)
+  const colorRow = document.createElement('div');
+  colorRow.className = 'ctrl-row';
+  const colorPicker = document.createElement('div');
+  colorPicker.className = 'color-picker';
+  const colorLbl = document.createElement('span');
+  colorLbl.className = 'color-label';
+  colorLbl.textContent = 'Stone:';
+  colorPicker.appendChild(colorLbl);
+  for (const c of STONE_COLORS) {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (s.stoneColor === c.id ? ' active' : '');
+    sw.style.background = c.css;
+    sw.title = c.label;
+    sw.id = `swatch-${sheetId}-${c.id}`;
+    sw.addEventListener('click', () => {
+      document.querySelectorAll(`[id^="swatch-${sheetId}-"]`).forEach(el => el.classList.remove('active'));
+      sw.classList.add('active');
+      socket.emit('set-stone-color', { sheetId, color: c.id });
+    });
+    colorPicker.appendChild(sw);
+  }
+  colorRow.appendChild(colorPicker);
+
   // Controls
   const ctrl = document.createElement('div');
   ctrl.className = 'sad-controls';
+  ctrl.appendChild(colorRow);
 
-  if (s.phase === 'idle' || s.phase === 'result') {
+  if (s.phase === 'idle') {
     const row = document.createElement('div');
     row.className = 'ctrl-row';
     const sel = document.createElement('select');
@@ -662,10 +714,9 @@ function renderCardBody(sheetId, container, s) {
       sel.appendChild(o);
     }
     row.appendChild(sel);
-
     const startBtn = document.createElement('button');
     startBtn.className = 'btn btn-primary';
-    startBtn.textContent = s.phase === 'result' ? '▶ Start Next End' : '▶ Start End';
+    startBtn.textContent = '▶ Start Vote';
     startBtn.addEventListener('click', () => {
       socket.emit('start-round', { sheetId, countdown: parseInt(sel.value) });
     });
@@ -674,22 +725,39 @@ function renderCardBody(sheetId, container, s) {
   }
 
   if (s.phase === 'voting') {
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
     const btn = document.createElement('button');
     btn.className = 'btn btn-warning btn-sm';
     btn.textContent = 'Force End Voting';
     btn.addEventListener('click', () => socket.emit('force-end', { sheetId }));
-    const row = document.createElement('div');
-    row.className = 'ctrl-row';
     row.appendChild(btn);
     ctrl.appendChild(row);
   }
 
   if (s.phase === 'result') {
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-gold btn-full';
-    btn.textContent = '✓ Throw Complete';
-    btn.addEventListener('click', () => socket.emit('throw-complete', { sheetId }));
-    ctrl.appendChild(btn);
+    // Single combined button: mark throw done and immediately start next vote
+    const sel = document.createElement('select');
+    sel.className = 'countdown-sel';
+    sel.id = `cd-sel-${sheetId}`;
+    for (const [v, l] of [['15','15s'],['30','30s'],['45','45s'],['60','60s']]) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = l;
+      if (v === String(s.countdown)) o.selected = true;
+      sel.appendChild(o);
+    }
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-gold btn-full';
+    nextBtn.style.marginTop = '4px';
+    nextBtn.textContent = '▶ Next Stone';
+    nextBtn.addEventListener('click', () => {
+      socket.emit('start-round', { sheetId, countdown: parseInt(sel.value) });
+    });
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+    row.appendChild(sel);
+    ctrl.appendChild(row);
+    ctrl.appendChild(nextBtn);
   }
 
   container.appendChild(ctrl);

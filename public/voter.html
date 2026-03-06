@@ -160,6 +160,23 @@
     color: var(--muted);
     text-align: right;
   }
+  .stone-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--slate);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: .72rem;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .stone-pip {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.2);
+    flex-shrink: 0;
+  }
 
   .category-section { display: flex; flex-direction: column; gap: 8px; }
   .cat-title {
@@ -298,9 +315,15 @@
   <!-- Vote screen -->
   <div class="screen" id="screen-vote">
     <button class="back-btn" id="back-btn">← All Sheets</button>
-    <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
       <div class="sheet-heading" id="vote-sheet-name">Sheet A</div>
-      <div class="countdown-text" id="countdown-text"></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="stone-pill" id="stone-pill" style="display:none">
+          <div class="stone-pip" id="stone-pip"></div>
+          <span id="stone-color-label"></span>
+        </div>
+        <div class="countdown-text" id="countdown-text"></div>
+      </div>
     </div>
     <div class="countdown-bar-wrap">
       <div class="countdown-bar-fill" id="countdown-bar" style="width:100%"></div>
@@ -351,6 +374,9 @@ let sheetsData  = {};   // sheetId → public state
 let categories  = {};
 let currentSheet = null;
 let myVotes     = { type: null, handle: null, line: null };
+const stoneColorCSS = { red:'#ef5350', yellow:'#ffd700', blue:'#42a5f5', black:'#555', green:'#66bb6a', white:'#e8f4f8' };
+const stoneColorName = { red:'Red', yellow:'Yellow', blue:'Blue', black:'Black', green:'Green', white:'White' };
+
 const colorMap  = {
   guard: 'guard', draw: 'draw', takeout: 'takeout',
   in: 'in', out: 'out',
@@ -495,7 +521,16 @@ function updateMeta(sheetId) {
   const s = sheetsData[sheetId];
   if (!s) return;
   document.getElementById('header-meta').textContent =
-    `Sheet ${sheetId} · End ${s.round} · ${s.totalVoters} voter${s.totalVoters !== 1 ? 's' : ''}`;
+    `Sheet ${sheetId} · Stone ${s.round} · ${s.totalVoters} voter${s.totalVoters !== 1 ? 's' : ''}`;
+  // Stone color pill
+  const pill = document.getElementById('stone-pill');
+  const pip  = document.getElementById('stone-pip');
+  const lbl  = document.getElementById('stone-color-label');
+  if (pill && s.stoneColor) {
+    pill.style.display = 'inline-flex';
+    pip.style.background = stoneColorCSS[s.stoneColor] || '#888';
+    lbl.textContent = (stoneColorName[s.stoneColor] || s.stoneColor) + ' stones';
+  }
 }
 
 // ─── Category UI ────────────────────────────────────────────────────────────────

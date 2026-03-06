@@ -10,9 +10,10 @@ const QRCode = require('qrcode');
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
-const ADMIN_TOKEN  = process.env.ADMIN_TOKEN || 'admin-change-me';
-let   VOTER_TOKEN  = process.env.VOTER_TOKEN || crypto.randomBytes(16).toString('hex');
-const PUBLIC_URL   = (process.env.PUBLIC_URL || 'http://localhost').replace(/\/$/, '');
+const ADMIN_TOKEN          = process.env.ADMIN_TOKEN || 'admin-change-me';
+let   VOTER_TOKEN          = process.env.VOTER_TOKEN || crypto.randomBytes(16).toString('hex');
+const PUBLIC_URL           = (process.env.PUBLIC_URL || 'http://localhost').replace(/\/$/, '');
+const VOTER_TOKEN_REQUIRED = process.env.VOTER_TOKEN_REQUIRED !== 'false';
 
 const SSL_KEY  = process.env.SSL_KEY;
 const SSL_CERT = process.env.SSL_CERT;
@@ -23,9 +24,9 @@ const USE_SSL  = !!(SSL_KEY && SSL_CERT && fs.existsSync(SSL_KEY) && fs.existsSy
 const app = express();
 app.use(express.static('public'));
 
-// /vote with no token → friendly redirect to index
+// /vote — token required only if VOTER_TOKEN_REQUIRED=true (default)
 app.get('/vote', (req, res) => {
-  if (!req.query.t) return res.redirect('/');
+  if (VOTER_TOKEN_REQUIRED && !req.query.t) return res.redirect('/');
   res.sendFile('voter.html', { root: 'public' });
 });
 
@@ -68,6 +69,7 @@ function makeSheetState() {
     round: 0,
     countdown: 30,
     timeRemaining: 0,
+    stoneColor: 'red',  // color indicator set by admin
     votes: {
       type:   { guard: 0, draw: 0, takeout: 0 },
       handle: { in: 0, out: 0 },
@@ -150,6 +152,7 @@ function publicSheet(sheetId) {
     round: s.round,
     countdown: s.countdown,
     timeRemaining: s.timeRemaining,
+    stoneColor: s.stoneColor,
     votes: s.votes,
     winners: s.winners,
     totalVoters,
@@ -174,7 +177,7 @@ io.use((socket, next) => {
   }
 
   // voter
-  if (token === VOTER_TOKEN) return next();
+  if (!VOTER_TOKEN_REQUIRED || token === VOTER_TOKEN) return next();
   return next(new Error('Invalid voter token'));
 });
 
@@ -229,8 +232,11 @@ io.on('connection', async (socket) => {
 
       clearInterval(sheet.timer);
 
-      // Clear voter states for this sheet
-      sheet.voterState.clear();
+      // Reset existing voter selections to null so voters already on the sheet
+      // can vote again without needing to rejoin (fixes the "must rejoin" bug)
+      for (const state of sheet.voterState.values()) {
+        state.type = null; state.handle = null; state.line = null;
+      }
       sheet.votes = emptyVotes();
       sheet.winners = { type: null, handle: null, line: null };
       sheet.phase = 'voting';
@@ -261,6 +267,16 @@ io.on('connection', async (socket) => {
       const sheet = sheets[sheetId];
       if (!sheet || sheet.phase !== 'result') return;
       sheet.phase = 'idle';
+      const update = publicSheet(sheetId);
+      io.to(`sheet:${sheetId}`).emit('state-update', update);
+      io.to('admin').emit('state-update', update);
+      io.to('display').emit('state-update', update);
+    });
+
+    socket.on('set-stone-color', ({ sheetId, color }) => {
+      const sheet = sheets[sheetId];
+      if (!sheet) return;
+      sheet.stoneColor = color;
       const update = publicSheet(sheetId);
       io.to(`sheet:${sheetId}`).emit('state-update', update);
       io.to('admin').emit('state-update', update);
