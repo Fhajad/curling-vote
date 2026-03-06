@@ -572,6 +572,7 @@ function buildLineTapBar(closed) {
 
   return `
     <div id="line-bar-wrap" style="position:relative;width:100%;opacity:${opacity}">
+      <div style="font-size:.62rem;color:var(--muted);text-align:center;margin-bottom:4px">Tap or drag to place broom</div>
       <!-- dot cloud (other voters) -->
       <div id="line-dots" style="position:relative;height:28px;width:100%;margin-bottom:4px"></div>
       <!-- tap/drag bar -->
@@ -718,6 +719,7 @@ function castVote(category, choice) {
 }
 
 function formatFtIn(pos) {
+  if (pos === null || pos === undefined) return '—';
   const ft = 2 + pos * 10;
   const feet = Math.floor(ft);
   const inches = Math.round((ft - feet) * 12);
@@ -754,9 +756,13 @@ function renderResult(state) {
   const w = state.winners;
   document.getElementById('result-shot').textContent   = shotLabels[w.type]   || '—';
   document.getElementById('result-detail').textContent =
-    `${shotLabels[w.handle] || '—'}  ·  ${shotLabels[w.line] || '—'}`;
+    `${shotLabels[w.handle] || '—'}  ·  ${formatFtIn(w.line)}`;
 
-  const picked = [myVotes.type, myVotes.handle, myVotes.line].filter(Boolean).map(v => shotLabels[v]).join(' · ');
+  const parts = [];
+  if (myVotes.type)       parts.push(shotLabels[myVotes.type]);
+  if (myVotes.handle)     parts.push(shotLabels[myVotes.handle]);
+  if (myLinePos !== null) parts.push(formatFtIn(myLinePos));
+  const picked = parts.join(' · ');
   const note = document.getElementById('your-pick-note');
   note.innerHTML = picked
     ? `You voted: <strong>${picked}</strong>`
