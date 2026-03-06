@@ -542,6 +542,38 @@ function updateMeta(sheetId) {
 
 // ─── Category UI ────────────────────────────────────────────────────────────────
 
+function buildHouseDiagram(catKey, closed, selectedOpt) {
+  const rings = [
+    { opt: '12', r: 90, fill: '#c8d4e4', textFill: '#2a3a4a' },
+    { opt: '8',  r: 66, fill: '#3a72b8', textFill: '#ffffff' },
+    { opt: '4',  r: 42, fill: '#c8d4e4', textFill: '#2a3a4a' },
+    { opt: '2',  r: 22, fill: '#c84040', textFill: '#ffffff' },
+  ];
+  const bandMid = { '12': 78, '8': 54, '4': 32, '2': 11 };
+  let svg = '';
+  for (const ring of rings) {
+    const sel = selectedOpt === ring.opt;
+    svg += `<circle cx="100" cy="100" r="${ring.r}"
+      fill="${ring.fill}"
+      stroke="${sel ? '#ffd700' : 'rgba(255,255,255,0.15)'}"
+      stroke-width="${sel ? '5' : '1.5'}"
+      id="house-ring-${catKey}-${ring.opt}"
+      ${!closed ? `onclick="castVote('${catKey}','${ring.opt}')"` : ''}
+      style="${!closed ? 'cursor:pointer;' : 'opacity:.5;'}"/>`;
+  }
+  svg += `<circle cx="100" cy="100" r="3" fill="rgba(255,255,255,.7)" pointer-events="none"/>`;
+  for (const ring of rings) {
+    const y = 100 - bandMid[ring.opt] + 5;
+    svg += `<text x="100" y="${y}" text-anchor="middle" font-size="13" font-weight="800"
+      fill="${ring.textFill}" pointer-events="none"
+      style="font-family:system-ui,sans-serif">${ring.opt}'</text>`;
+  }
+  return `<div style="display:flex;justify-content:center">
+    <svg viewBox="0 0 200 200" width="190" height="190"
+      style="display:block;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))">${svg}</svg>
+  </div>`;
+}
+
 function buildCategoryUI(state) {
   const container = document.getElementById('categories-container');
   container.innerHTML = '';
@@ -551,21 +583,23 @@ function buildCategoryUI(state) {
     const section = document.createElement('div');
     section.className = 'category-section';
     section.innerHTML = `<div class="cat-title">${cat.label}</div>`;
-    const row = document.createElement('div');
-    row.className = 'options-row';
 
-    for (const opt of cat.options) {
-      const btn = document.createElement('button');
-      const cls = colorMap[opt] || '';
-      btn.className = `opt-btn ${cls}${myVotes[catKey] === opt ? ' selected' : ''}${closed ? ' disabled' : ''}`;
-      btn.id = `opt-${catKey}-${opt}`;
-      btn.innerHTML = `${cat.labels[opt]}`;
-      if (!closed) {
-        btn.addEventListener('click', () => castVote(catKey, opt));
+    if (catKey === 'line') {
+      section.insertAdjacentHTML('beforeend', buildHouseDiagram(catKey, closed, myVotes[catKey]));
+    } else {
+      const row = document.createElement('div');
+      row.className = 'options-row';
+      for (const opt of cat.options) {
+        const btn = document.createElement('button');
+        const cls = colorMap[opt] || '';
+        btn.className = `opt-btn ${cls}${myVotes[catKey] === opt ? ' selected' : ''}${closed ? ' disabled' : ''}`;
+        btn.id = `opt-${catKey}-${opt}`;
+        btn.innerHTML = `${cat.labels[opt]}`;
+        if (!closed) btn.addEventListener('click', () => castVote(catKey, opt));
+        row.appendChild(btn);
       }
-      row.appendChild(btn);
+      section.appendChild(row);
     }
-    section.appendChild(row);
     container.appendChild(section);
   }
   updatePickSummary();
@@ -575,15 +609,21 @@ function castVote(category, choice) {
   if (!currentSheet || sheetsData[currentSheet]?.phase !== 'voting') return;
   socket.emit('vote', { sheetId: currentSheet, category, choice });
 
-  // Optimistic UI
+  // Optimistic UI — buttons
   const old = myVotes[category];
   if (old) {
     const el = document.getElementById(`opt-${category}-${old}`);
     if (el) el.classList.remove('selected');
+    // House ring
+    const oldRing = document.getElementById(`house-ring-${category}-${old}`);
+    if (oldRing) { oldRing.setAttribute('stroke', 'rgba(255,255,255,0.15)'); oldRing.setAttribute('stroke-width', '1.5'); }
   }
   myVotes[category] = choice;
   const el = document.getElementById(`opt-${category}-${choice}`);
   if (el) el.classList.add('selected');
+  // House ring
+  const newRing = document.getElementById(`house-ring-${category}-${choice}`);
+  if (newRing) { newRing.setAttribute('stroke', '#ffd700'); newRing.setAttribute('stroke-width', '5'); }
   updatePickSummary();
 }
 

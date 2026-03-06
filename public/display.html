@@ -524,15 +524,11 @@ function stoneSize() {
 
 function stoneGraphicHTML(color, size) {
   const css = stoneColorCSS(color);
-  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;filter:drop-shadow(0 6px 18px rgba(0,0,0,.65))">
-    <circle cx="52" cy="53" r="43" fill="rgba(0,0,0,.4)"/>
-    <circle cx="50" cy="50" r="44" fill="#50505a" stroke="#28282e" stroke-width="1.5"/>
-    <circle cx="50" cy="50" r="37" fill="#5c5c68" stroke="#3c3c44" stroke-width="1"/>
-    <circle cx="50" cy="50" r="28" fill="#52525e" stroke="#3c3c44" stroke-width="1"/>
-    <rect x="30" y="42" width="40" height="16" rx="8" fill="${css}" stroke="rgba(255,255,255,.22)" stroke-width="1.5"/>
-    <circle cx="50" cy="50" r="5.5" fill="#22222a"/>
-    <circle cx="50" cy="50" r="2.5" fill="#111118"/>
-    <ellipse cx="42" cy="45" rx="3" ry="2" fill="rgba(255,255,255,.14)"/>
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6))">
+    <circle cx="52" cy="53" r="44" fill="rgba(0,0,0,.3)"/>
+    <circle cx="50" cy="50" r="44" fill="${css}" stroke="rgba(0,0,0,.2)" stroke-width="1.5"/>
+    <ellipse cx="37" cy="34" rx="13" ry="9" fill="rgba(255,255,255,.28)"/>
+    <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="1.5"/>
   </svg>`;
 }
 
