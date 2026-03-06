@@ -333,11 +333,22 @@
     animation: spin 1s linear infinite;
   }
 
-  .stone-dot {
-    display: inline-block;
-    width: 13px; height: 13px;
+  .stone-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    border: 2px solid rgba(255,255,255,.12);
+  }
+  .stone-badge-pip {
+    width: 12px; height: 12px;
     border-radius: 50%;
-    border: 2px solid rgba(255,255,255,.25);
+    border: 1px solid rgba(255,255,255,.3);
     flex-shrink: 0;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -484,10 +495,7 @@ function buildCard(sheetId) {
     <div class="card-header">
       <div class="card-title">Sheet ${sheetId}</div>
       <div class="round-badge" id="round-${sheetId}">Stone ${s.round || '—'}</div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span class="stone-dot" id="sdot-${sheetId}" style="background:${stoneColorCSS(s.stoneColor)}"></span>
-        <div class="voter-count" id="voters-${sheetId}">${s.totalVoters || 0} voters</div>
-      </div>
+      <div class="voter-count" id="voters-${sheetId}">${s.totalVoters || 0} voters</div>
     </div>
     <div class="card-body" id="body-${sheetId}"></div>
   `;
@@ -507,15 +515,22 @@ function renderSheet(sheetId) {
   card.className = `sheet-card ${s.phase}`;
   document.getElementById(`round-${sheetId}`).textContent = `Stone ${s.round || '—'}`;
   document.getElementById(`voters-${sheetId}`).textContent = `${s.totalVoters} voter${s.totalVoters !== 1 ? 's' : ''}`;
-  const dot = document.getElementById(`sdot-${sheetId}`);
-  if (dot) dot.style.background = stoneColorCSS(s.stoneColor);
   renderBody(sheetId, document.getElementById(`body-${sheetId}`));
+}
+
+function stoneBadgeHTML(s) {
+  if (!s.stoneColor || s.round === 0) return '';
+  const css   = stoneColorCSS(s.stoneColor);
+  const label = ({ red:'Red', yellow:'Yellow', blue:'Blue', black:'Black', green:'Green', white:'White' })[s.stoneColor] || s.stoneColor;
+  return `<div class="stone-badge" style="background:${css}22;border-color:${css}55;color:${css};">
+    <div class="stone-badge-pip" style="background:${css}"></div>${label} stones
+  </div>`;
 }
 
 function renderBody(sheetId, container) {
   const s = sheetsData[sheetId];
   if (!s || s.phase === 'idle') {
-    container.innerHTML = `<div class="idle-text">Waiting for next end…</div>`;
+    container.innerHTML = `<div class="idle-text">Waiting for next stone…</div>`;
     return;
   }
   if (s.phase === 'voting') {
@@ -564,7 +579,9 @@ function buildVotingHTML(sheetId) {
 
   return `
     <div class="vote-layout">
-      <div class="vote-bars">${barsHTML}</div>
+      <div class="vote-bars">
+        ${stoneBadgeHTML(s)}
+        ${barsHTML}</div>
       <div class="countdown-wrap">
         <svg class="countdown-svg" width="90" height="90" viewBox="0 0 90 90">
           <circle class="countdown-bg" cx="45" cy="45" r="${r}" stroke-width="8" transform="rotate(-90 45 45)"/>
@@ -630,9 +647,10 @@ function buildResultHTML(s) {
 
   return `<div class="result-card">
     <div class="result-label">The crowd has spoken</div>
-    <div class="result-shot">${type}</div>
+    ${stoneBadgeHTML(s)}
+    <div class="result-shot" style="margin-top:8px">${type}</div>
     <div class="result-sub">${handle} &nbsp;·&nbsp; ${line}</div>
-    <div class="waiting-pill">Waiting for throw…</div>
+    <div class="waiting-pill">Waiting for next stone…</div>
   </div>`;
 }
 </script>

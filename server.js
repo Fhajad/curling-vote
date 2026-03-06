@@ -63,13 +63,13 @@ let sheetNames = []; // e.g. ['A','B','C'] or ['1','2','3']
 // sheetId → sheet state
 const sheets = {};
 
-function makeSheetState() {
+function makeSheetState(colors = ['red', 'yellow']) {
   return {
     phase: 'idle',   // idle | voting | result
     round: 0,
     countdown: 30,
     timeRemaining: 0,
-    stoneColor: 'red',  // color indicator set by admin
+    colors,          // [colorA, colorB] — auto-alternates each stone
     votes: {
       type:   { guard: 0, draw: 0, takeout: 0 },
       handle: { in: 0, out: 0 },
@@ -81,10 +81,11 @@ function makeSheetState() {
   };
 }
 
-function initSheets(names) {
+function initSheets(names, sheetColors = {}) {
   sheetNames = names;
   for (const name of names) {
-    sheets[name] = makeSheetState();
+    const colors = sheetColors[name] || ['red', 'yellow'];
+    sheets[name] = makeSheetState(colors);
   }
 }
 
@@ -152,7 +153,8 @@ function publicSheet(sheetId) {
     round: s.round,
     countdown: s.countdown,
     timeRemaining: s.timeRemaining,
-    stoneColor: s.stoneColor,
+    colors: s.colors,
+    stoneColor: s.colors[(s.round === 0 ? 0 : (s.round - 1) % 2)],  // auto-alternates
     votes: s.votes,
     winners: s.winners,
     totalVoters,
@@ -212,7 +214,7 @@ io.on('connection', async (socket) => {
       qr,
     });
 
-    socket.on('setup', ({ count, scheme }) => {
+    socket.on('setup', ({ count, scheme, sheetColors }) => {
       if (setupDone) return;
       count = Math.min(48, Math.max(1, parseInt(count) || 1));
       let names;
@@ -221,7 +223,7 @@ io.on('connection', async (socket) => {
       } else {
         names = Array.from({ length: count }, (_, i) => String(i + 1));
       }
-      initSheets(names);
+      initSheets(names, sheetColors || {});
       setupDone = true;
       io.emit('setup-complete', { sheetNames, sheets: allSheetsPublic() });
     });
@@ -267,16 +269,6 @@ io.on('connection', async (socket) => {
       const sheet = sheets[sheetId];
       if (!sheet || sheet.phase !== 'result') return;
       sheet.phase = 'idle';
-      const update = publicSheet(sheetId);
-      io.to(`sheet:${sheetId}`).emit('state-update', update);
-      io.to('admin').emit('state-update', update);
-      io.to('display').emit('state-update', update);
-    });
-
-    socket.on('set-stone-color', ({ sheetId, color }) => {
-      const sheet = sheets[sheetId];
-      if (!sheet) return;
-      sheet.stoneColor = color;
       const update = publicSheet(sheetId);
       io.to(`sheet:${sheetId}`).emit('state-update', update);
       io.to('admin').emit('state-update', update);

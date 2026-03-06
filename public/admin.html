@@ -383,8 +383,8 @@
     </div>
 
     <div class="form-row">
-      <label>Preview</label>
-      <div class="preview-sheets" id="preview-chips"></div>
+      <label>Stone Colors per Sheet</label>
+      <div id="sheet-color-config"></div>
     </div>
 
     <button class="btn btn-primary btn-full" id="setup-btn">Start Session</button>
@@ -468,11 +468,6 @@ function connect() {
   socket.on('state-update', state => {
     sheetsData[state.sheetId] = state;
     renderCard(state.sheetId);
-    // sync swatch highlight in case color changed externally
-    for (const c of STONE_COLORS) {
-      const sw = document.getElementById(`swatch-${state.sheetId}-${c.id}`);
-      if (sw) sw.classList.toggle('active', c.id === state.stoneColor);
-    }
   });
 
   socket.on('votes-update', ({ sheetId, votes, totalVoters }) => {
@@ -526,22 +521,83 @@ document.querySelectorAll('.scheme-btn').forEach(btn => {
     document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentScheme = btn.dataset.scheme;
-    updatePreview();
+    updateColorConfig();
   });
 });
 
-document.getElementById('sheet-count').addEventListener('input', updatePreview);
+document.getElementById('sheet-count').addEventListener('input', updateColorConfig);
 
-function updatePreview() {
-  const count = parseInt(document.getElementById('sheet-count').value) || 1;
-  const chips = document.getElementById('preview-chips');
-  chips.innerHTML = '';
-  const names = getNames(count, currentScheme);
-  for (const n of names) {
-    const chip = document.createElement('div');
-    chip.className = 'preview-chip';
-    chip.textContent = `Sheet ${n}`;
-    chips.appendChild(chip);
+const COLOR_OPTIONS = [
+  { id: 'red',    label: 'Red',    css: '#ef5350' },
+  { id: 'yellow', label: 'Yellow', css: '#ffd700' },
+  { id: 'blue',   label: 'Blue',   css: '#42a5f5' },
+  { id: 'black',  label: 'Black',  css: '#555'    },
+  { id: 'green',  label: 'Green',  css: '#66bb6a' },
+  { id: 'white',  label: 'White',  css: '#e8f4f8' },
+];
+// Defaults that cycle nicely across sheets
+const DEFAULT_PAIRS = [
+  ['red','yellow'], ['blue','red'], ['yellow','blue'],
+  ['green','black'], ['red','blue'], ['yellow','green'],
+];
+
+function makeColorSelect(id, selected) {
+  const sel = document.createElement('select');
+  sel.id = id;
+  sel.style.cssText = 'background:var(--slate);border:1px solid var(--bg);border-radius:8px;color:var(--text);padding:6px 10px;font-size:.85rem;flex:1;';
+  for (const c of COLOR_OPTIONS) {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.label;
+    if (c.id === selected) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change', updateColorDot.bind(null, id));
+  return sel;
+}
+
+function updateColorDot(selId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const dot = document.getElementById('dot-' + selId);
+  const c   = COLOR_OPTIONS.find(c => c.id === sel.value);
+  if (dot && c) dot.style.background = c.css;
+}
+
+function colorDot(selId, color) {
+  const c = COLOR_OPTIONS.find(c => c.id === color);
+  const d = document.createElement('div');
+  d.id = 'dot-' + selId;
+  d.style.cssText = `width:14px;height:14px;border-radius:50%;background:${c?.css||'#888'};border:2px solid rgba(255,255,255,.2);flex-shrink:0;`;
+  return d;
+}
+
+function updateColorConfig() {
+  const count  = parseInt(document.getElementById('sheet-count').value) || 1;
+  const names  = getNames(count, currentScheme);
+  const container = document.getElementById('sheet-color-config');
+  container.innerHTML = '';
+
+  for (let i = 0; i < names.length; i++) {
+    const n    = names[i];
+    const pair = DEFAULT_PAIRS[i % DEFAULT_PAIRS.length];
+    const row  = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+
+    const lbl = document.createElement('span');
+    lbl.textContent = `Sheet ${n}`;
+    lbl.style.cssText = 'font-size:.8rem;color:var(--muted);width:56px;flex-shrink:0;';
+
+    const selA = makeColorSelect(`color-${n}-a`, pair[0]);
+    const selB = makeColorSelect(`color-${n}-b`, pair[1]);
+    const dotA = colorDot(`color-${n}-a`, pair[0]);
+    const dotB = colorDot(`color-${n}-b`, pair[1]);
+
+    const sep = document.createElement('span');
+    sep.textContent = '↔';
+    sep.style.cssText = 'color:var(--muted);font-size:.8rem;flex-shrink:0;';
+
+    row.append(lbl, dotA, selA, sep, dotB, selB);
+    container.appendChild(row);
   }
 }
 
@@ -553,10 +609,17 @@ function getNames(count, scheme) {
 
 document.getElementById('setup-btn').addEventListener('click', () => {
   const count  = parseInt(document.getElementById('sheet-count').value) || 1;
-  socket.emit('setup', { count, scheme: currentScheme });
+  const names  = getNames(count, currentScheme);
+  const sheetColors = {};
+  for (const n of names) {
+    const a = document.getElementById(`color-${n}-a`)?.value || 'red';
+    const b = document.getElementById(`color-${n}-b`)?.value || 'yellow';
+    sheetColors[n] = [a, b];
+  }
+  socket.emit('setup', { count, scheme: currentScheme, sheetColors });
 });
 
-updatePreview();
+updateColorConfig();
 
 // ─── Setup applied ────────────────────────────────────────────────────────────────
 
@@ -595,10 +658,19 @@ function buildCard(sheetId) {
   const div = document.createElement('div');
   div.className = `sheet-admin-card ${s.phase} anim`;
   div.id = `sacard-${sheetId}`;
+  const colorA = COLOR_OPTIONS.find(c => c.id === s.colors?.[0]);
+  const colorB = COLOR_OPTIONS.find(c => c.id === s.colors?.[1]);
   div.innerHTML = `
     <div class="sad-header">
       <div class="sad-title">Sheet ${sheetId}</div>
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:4px;font-size:.7rem;color:var(--muted);">
+          <div style="width:10px;height:10px;border-radius:50%;background:${colorA?.css||'#888'};border:1px solid rgba(255,255,255,.2);"></div>
+          <span>${colorA?.label||'?'}</span>
+          <span>↔</span>
+          <div style="width:10px;height:10px;border-radius:50%;background:${colorB?.css||'#888'};border:1px solid rgba(255,255,255,.2);"></div>
+          <span>${colorB?.label||'?'}</span>
+        </div>
         <span class="voters-badge" id="voters-${sheetId}">${s.totalVoters} voters</span>
         <div class="sad-phase ${s.phase}" id="phase-badge-${sheetId}">${phaseBadgeLabel(s.phase, s.round)}</div>
       </div>
@@ -672,34 +744,9 @@ function renderCardBody(sheetId, container, s) {
     container.appendChild(res);
   }
 
-  // Stone color picker (always visible)
-  const colorRow = document.createElement('div');
-  colorRow.className = 'ctrl-row';
-  const colorPicker = document.createElement('div');
-  colorPicker.className = 'color-picker';
-  const colorLbl = document.createElement('span');
-  colorLbl.className = 'color-label';
-  colorLbl.textContent = 'Stone:';
-  colorPicker.appendChild(colorLbl);
-  for (const c of STONE_COLORS) {
-    const sw = document.createElement('div');
-    sw.className = 'color-swatch' + (s.stoneColor === c.id ? ' active' : '');
-    sw.style.background = c.css;
-    sw.title = c.label;
-    sw.id = `swatch-${sheetId}-${c.id}`;
-    sw.addEventListener('click', () => {
-      document.querySelectorAll(`[id^="swatch-${sheetId}-"]`).forEach(el => el.classList.remove('active'));
-      sw.classList.add('active');
-      socket.emit('set-stone-color', { sheetId, color: c.id });
-    });
-    colorPicker.appendChild(sw);
-  }
-  colorRow.appendChild(colorPicker);
-
   // Controls
   const ctrl = document.createElement('div');
   ctrl.className = 'sad-controls';
-  ctrl.appendChild(colorRow);
 
   if (s.phase === 'idle') {
     const row = document.createElement('div');
