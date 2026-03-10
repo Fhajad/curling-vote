@@ -790,7 +790,7 @@ function resultHouseHTML(linePos, handle, size) {
   const side = handle === 'in' ? -1 : 1;
   const cx = (D_CX + side * linePos * D_SCALE).toFixed(1);
   const ftStr = formatLineResult(linePos);
-  return `<div style="width:100%;max-width:${size}px;margin:0 auto">
+  return `<div style="width:min(${size}px,100%,calc(90vh - 280px));margin:0 auto">
     <svg viewBox="0 0 100 100" width="100%" style="display:block;overflow:visible">
       <defs>
         <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -814,7 +814,7 @@ function buildResultHTML(s) {
 
   const n = sheetNames.length;
   const stoneSz = n === 1 ? 80 : n === 2 ? 60 : 45;
-  const houseSz = n === 1 ? 480 : n === 2 ? 360 : 270;
+  const houseSz = n === 1 ? 900 : n === 2 ? 600 : 420;
 
   const stoneEl = s.stoneColor && s.round > 0
     ? `<div class="stone-area" style="margin-bottom:6px">
