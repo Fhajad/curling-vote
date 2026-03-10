@@ -250,6 +250,11 @@
   .result-card {
     text-align: center;
     animation: fadeIn .5s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
   }
   .result-label {
     font-size: .7rem;
@@ -824,12 +829,14 @@ function buildResultHTML(s) {
   const houseEl = resultHouseHTML(w.line, w.handle, houseSz);
 
   return `<div class="result-card">
-    ${stoneEl}
-    <div class="result-label">The crowd has spoken</div>
-    <div class="result-shot">${type}</div>
-    <div class="result-sub">${handle}</div>
-    ${houseEl ? `<div style="margin-top:10px;width:100%">${houseEl}</div>` : ''}
-    <div class="waiting-pill">Waiting for next stone…</div>
+    <div style="flex-shrink:0;text-align:center">
+      ${stoneEl}
+      <div class="result-label">The crowd has spoken</div>
+      <div class="result-shot">${type}</div>
+      <div class="result-sub">${handle}</div>
+    </div>
+    ${houseEl ? `<div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%;padding:8px 0">${houseEl}</div>` : ''}
+    <div class="waiting-pill" style="flex-shrink:0">Waiting for next stone…</div>
   </div>`;
 }
 </script>
