@@ -789,20 +789,21 @@ function resultHouseHTML(linePos, handle, size) {
   const side = handle === 'in' ? -1 : 1;
   const cx = (D_CX + side * linePos * D_SCALE).toFixed(1);
   const ftStr = formatLineResult(linePos);
-  return `<svg viewBox="0 0 100 100"
-    style="width:min(${size}px,90vmin);height:auto;aspect-ratio:1/1;display:block;overflow:visible">
-    <defs>
-      <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="1.5" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-    </defs>
-    ${displayHouseRingsHTML()}
-    <polygon points="0,-10 3,-4.5 3,4.5 0,10 -3,4.5 -3,-4.5"
-      transform="translate(${cx}, ${D_CY})"
-      fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
-    <text x="${cx}" y="${D_CY - 12}" text-anchor="middle" font-size="5" fill="#ffd700" font-weight="bold">${ftStr}</text>
-  </svg>`;
+  return `<div style="width:100%;max-width:${size}px;margin:0 auto">
+    <svg viewBox="0 0 100 100" width="100%" style="display:block;overflow:visible">
+      <defs>
+        <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      ${displayHouseRingsHTML()}
+      <polygon points="0,-10 3,-4.5 3,4.5 0,10 -3,4.5 -3,-4.5"
+        transform="translate(${cx}, ${D_CY})"
+        fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
+      <text x="${cx}" y="${D_CY - 12}" text-anchor="middle" font-size="5" fill="#ffd700" font-weight="bold">${ftStr}</text>
+    </svg>
+  </div>`;
 }
 
 function buildResultHTML(s) {
@@ -827,7 +828,7 @@ function buildResultHTML(s) {
     <div class="result-label">The crowd has spoken</div>
     <div class="result-shot">${type}</div>
     <div class="result-sub">${handle}</div>
-    ${houseEl ? `<div style="display:flex;justify-content:center;margin-top:10px;width:100%">${houseEl}</div>` : ''}
+    ${houseEl ? `<div style="margin-top:10px;width:100%">${houseEl}</div>` : ''}
     <div class="waiting-pill">Waiting for next stone…</div>
   </div>`;
 }
