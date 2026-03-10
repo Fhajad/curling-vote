@@ -427,7 +427,7 @@ function broadcastLineUpdate(sheetId) {
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
 
-const PORT = USE_SSL ? 443 : 80;
+const PORT = parseInt(process.env.PORT) || (USE_SSL ? 443 : 80);
 server.listen(PORT, () => {
   const voterUrl = VOTER_TOKEN_REQUIRED ? `${PUBLIC_URL}/vote?t=${VOTER_TOKEN}` : `${PUBLIC_URL}/vote`;
   console.log('\n=== Curling Vote ===');

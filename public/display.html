@@ -639,7 +639,7 @@ function lineHouseVotingHTML(sheetId) {
     ? `<line x1="${avgX}" y1="${D_CY-6}" x2="${avgX}" y2="${D_CY+6}" stroke="#ffd700" stroke-width="1.5" id="lavg-${sheetId}"/>`
     : `<line x1="-999" y1="${D_CY-6}" x2="-999" y2="${D_CY+6}" stroke="#ffd700" stroke-width="1.5" id="lavg-${sheetId}"/>`;
   const n = sheetNames.length;
-  const sz = n === 1 ? 120 : n === 2 ? 100 : 80;
+  const sz = n === 1 ? 240 : n === 2 ? 200 : 160;
   return `<svg id="ldbar-${sheetId}" viewBox="0 0 100 100" width="${sz}" height="${sz}" style="display:block;overflow:visible">
     ${displayHouseRingsHTML()}
     <g id="voter-dots-${sheetId}">${dotsHTML}</g>
@@ -809,7 +809,7 @@ function buildResultHTML(s) {
 
   const n = sheetNames.length;
   const stoneSz = n === 1 ? 160 : n === 2 ? 120 : 90;
-  const houseSz = n === 1 ? 160 : n === 2 ? 120 : 90;
+  const houseSz = n === 1 ? 480 : n === 2 ? 360 : 270;
 
   const stoneEl = s.stoneColor && s.round > 0
     ? `<div class="stone-area" style="margin-bottom:6px">
