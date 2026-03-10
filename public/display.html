@@ -789,7 +789,8 @@ function resultHouseHTML(linePos, handle, size) {
   const side = handle === 'in' ? -1 : 1;
   const cx = (D_CX + side * linePos * D_SCALE).toFixed(1);
   const ftStr = formatLineResult(linePos);
-  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;overflow:visible">
+  return `<svg viewBox="0 0 100 100"
+    style="width:min(${size}px,90vmin);height:auto;aspect-ratio:1/1;display:block;overflow:visible">
     <defs>
       <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur stdDeviation="1.5" result="blur"/>
@@ -797,8 +798,10 @@ function resultHouseHTML(linePos, handle, size) {
       </filter>
     </defs>
     ${displayHouseRingsHTML()}
-    <circle cx="${cx}" cy="${D_CY}" r="5" fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
-    <text x="${cx}" y="${D_CY - 9}" text-anchor="middle" font-size="5" fill="#ffd700" font-weight="bold">${ftStr}</text>
+    <polygon points="0,-10 3,-4.5 3,4.5 0,10 -3,4.5 -3,-4.5"
+      transform="translate(${cx}, ${D_CY})"
+      fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
+    <text x="${cx}" y="${D_CY - 12}" text-anchor="middle" font-size="5" fill="#ffd700" font-weight="bold">${ftStr}</text>
   </svg>`;
 }
 
@@ -824,7 +827,7 @@ function buildResultHTML(s) {
     <div class="result-label">The crowd has spoken</div>
     <div class="result-shot">${type}</div>
     <div class="result-sub">${handle}</div>
-    ${houseEl ? `<div style="display:flex;justify-content:center;margin-top:10px">${houseEl}</div>` : ''}
+    ${houseEl ? `<div style="display:flex;justify-content:center;margin-top:10px;width:100%">${houseEl}</div>` : ''}
     <div class="waiting-pill">Waiting for next stone…</div>
   </div>`;
 }
