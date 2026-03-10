@@ -351,6 +351,7 @@
       <div class="winner-label">The crowd chose</div>
       <div class="winner-shot" id="result-shot">—</div>
       <div class="winner-detail" id="result-detail"></div>
+      <div id="result-house" style="display:flex;justify-content:center;margin-top:12px"></div>
     </div>
     <div class="your-pick-note" id="your-pick-note"></div>
     <div class="status-box" style="font-size:.8rem;padding:14px 16px;">
@@ -561,48 +562,73 @@ let myLinePos = null;   // voter's own position 0–1
 let lineBarDragging = false;
 let lineBarDebounceTimer = null;
 
-function buildLineTapBar(closed) {
-  const markerLeft = myLinePos !== null ? (myLinePos * 100).toFixed(2) + '%' : null;
+// House SVG constants: viewBox 0 0 100 100, center (50,50), scale 46px = 12'
+const H_CX = 50, H_CY = 50, H_SCALE = 46;
+
+function houseRingsHTML() {
+  return [
+    { r: 46,   fill: '#0d2d50' },
+    { r: 30.7, fill: '#c8dff0' },
+    { r: 15.3, fill: '#9b1c1c' },
+    { r: 3.8,  fill: '#c8dff0' },
+  ].map(({r, fill}) =>
+    `<circle cx="${H_CX}" cy="${H_CY}" r="${r}" fill="${fill}" stroke="rgba(255,255,255,.08)" stroke-width=".5"/>`
+  ).join('') +
+  `<circle cx="${H_CX}" cy="${H_CY}" r="1.5" fill="#9b1c1c"/>` +
+  // tee line
+  `<line x1="${H_CX-H_SCALE}" y1="${H_CY}" x2="${H_CX+H_SCALE}" y2="${H_CY}" stroke="rgba(255,255,255,.45)" stroke-width=".8"/>` +
+  // ring-edge tick marks at 4' and 8' on both sides
+  [15.3, 30.7].flatMap(r => [H_CX - r, H_CX + r]).map(x =>
+    `<line x1="${x.toFixed(1)}" y1="${(H_CY-2.5).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(H_CY+2.5).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width=".6"/>`
+  ).join('') +
+  // labels: right side
+  `<text x="${H_CX}" y="${H_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">Ctr</text>` +
+  [[15.3,"4'"],[30.7,"8'"],[46,"12'"]].map(([r,l]) =>
+    `<text x="${(H_CX+r).toFixed(1)}" y="${H_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">${l}</text>` +
+    `<text x="${(H_CX-r).toFixed(1)}" y="${H_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">${l}</text>`
+  ).join('');
+}
+
+function buildLineHouse(closed) {
+  const broomCX = myLinePos !== null
+    ? (myVotes.handle === 'in' ? H_CX - myLinePos * H_SCALE : H_CX + myLinePos * H_SCALE).toFixed(1)
+    : null;
   const opacity = closed ? '0.45' : '1';
-  const labels = ["Center", "2'", "4'", "6'", "8'", "10'", "12'"];
-  const labelHTML = labels.map((l, i) => {
-    const pct = (i / (labels.length - 1) * 100).toFixed(1);
-    return `<span style="position:absolute;left:${pct}%;transform:translateX(-50%);font-size:.68rem;color:var(--muted);white-space:nowrap">${l}</span>`;
-  }).join('');
 
   return `
-    <div id="line-bar-wrap" style="position:relative;width:100%;opacity:${opacity}">
-      <div style="font-size:.62rem;color:var(--muted);text-align:center;margin-bottom:4px">Tap or drag to place broom</div>
-      <!-- dot cloud (other voters) -->
-      <div id="line-dots" style="position:relative;height:28px;width:100%;margin-bottom:4px"></div>
-      <!-- tap/drag bar -->
-      <div id="line-bar" style="
-        position:relative;width:100%;height:48px;border-radius:10px;
-        background:linear-gradient(90deg,#c84040 0%,#c8d4e4 35%,#3a72b8 65%,#c8d4e4 85%,#c84040 100%);
-        box-shadow:0 3px 12px rgba(0,0,0,.5);
-        ${!closed ? 'cursor:crosshair;touch-action:none;' : 'pointer-events:none;'}
-        overflow:visible;
-      ">
-        <!-- foot markers -->
-        ${[0,20,40,60,80,100].map(p => `<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.2);pointer-events:none"></div>`).join('')}
-        <!-- avg marker (grey, other voters) -->
-        <div id="line-avg-marker" style="display:none;position:absolute;top:-6px;bottom:-6px;width:3px;background:rgba(255,255,255,.4);border-radius:2px;transform:translateX(-50%);pointer-events:none"></div>
-        <!-- your marker (gold) -->
-        ${markerLeft !== null ? `<div id="line-my-marker" style="position:absolute;left:${markerLeft};top:50%;transform:translate(-50%,-50%);width:18px;height:18px;background:#ffd700;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px rgba(255,215,0,.7);pointer-events:none"></div>` : `<div id="line-my-marker" style="display:none;position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;background:#ffd700;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px rgba(255,215,0,.7);pointer-events:none"></div>`}
-      </div>
-      <!-- foot labels -->
-      <div style="position:relative;height:20px;margin-top:4px">${labelHTML}</div>
+    <div style="opacity:${opacity}">
+      <div style="font-size:.62rem;color:var(--muted);text-align:center;margin-bottom:6px">Tap or drag to place broom</div>
+      <svg id="line-house-svg" viewBox="0 0 100 100"
+        style="width:100%;max-width:240px;display:block;margin:0 auto;overflow:visible;${!closed ? 'cursor:crosshair;touch-action:none;' : 'pointer-events:none;'}">
+        <defs>
+          <filter id="broom-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        ${houseRingsHTML()}
+        <!-- voter dots (right side, rebuilt on line-update) -->
+        <g id="voter-dots"></g>
+        <!-- avg tick (right side) -->
+        <line id="avg-tick" x1="-999" y1="${H_CY-5}" x2="-999" y2="${H_CY+5}"
+          stroke="rgba(255,255,255,.55)" stroke-width="1.2" display="none"/>
+        <!-- broom dot -->
+        <circle id="broom-dot" cx="${broomCX ?? -999}" cy="${H_CY}" r="4"
+          fill="#ffd700" stroke="#fff" stroke-width=".8"
+          filter="url(#broom-glow)"
+          ${broomCX === null ? 'display="none"' : ''}/>
+      </svg>
     </div>`;
 }
 
 function initLineTapBar() {
-  const bar = document.getElementById('line-bar');
-  if (!bar) return;
+  const svg = document.getElementById('line-house-svg');
+  if (!svg) return;
 
-  function getPos(e) {
-    const rect = bar.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  function getPos(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const svgX = (clientX - rect.left) / rect.width * 100;
+    return Math.min(1, Math.max(0, Math.abs(svgX - H_CX) / H_SCALE));
   }
 
   function emitLinePos(pos) {
@@ -611,10 +637,12 @@ function initLineTapBar() {
   }
 
   function updateMyMarker(pos) {
-    const marker = document.getElementById('line-my-marker');
-    if (!marker) return;
-    marker.style.display = 'block';
-    marker.style.left = (pos * 100).toFixed(2) + '%';
+    const dot = document.getElementById('broom-dot');
+    if (!dot) return;
+    const side = myVotes.handle === 'in' ? -1 : 1;
+    const cx = (H_CX + side * pos * H_SCALE).toFixed(1);
+    dot.setAttribute('cx', cx);
+    dot.removeAttribute('display');
     myLinePos = pos;
     updatePickSummary();
   }
@@ -622,28 +650,26 @@ function initLineTapBar() {
   function onMove(e) {
     if (!lineBarDragging) return;
     e.preventDefault();
-    const pos = getPos(e);
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const pos = getPos(clientX);
     updateMyMarker(pos);
     clearTimeout(lineBarDebounceTimer);
     lineBarDebounceTimer = setTimeout(() => emitLinePos(pos), 60);
   }
 
-  function onEnd(e) {
+  function onEnd() {
     if (!lineBarDragging) return;
     lineBarDragging = false;
-    const pos = myLinePos;
-    if (pos !== null) { clearTimeout(lineBarDebounceTimer); emitLinePos(pos); }
+    if (myLinePos !== null) { clearTimeout(lineBarDebounceTimer); emitLinePos(myLinePos); }
   }
 
-  bar.addEventListener('mousedown', e => {
+  svg.addEventListener('mousedown', e => {
     lineBarDragging = true;
-    const pos = getPos(e);
-    updateMyMarker(pos);
+    updateMyMarker(getPos(e.clientX));
   });
-  bar.addEventListener('touchstart', e => {
+  svg.addEventListener('touchstart', e => {
     lineBarDragging = true;
-    const pos = getPos(e);
-    updateMyMarker(pos);
+    updateMyMarker(getPos(e.touches[0].clientX));
     e.preventDefault();
   }, { passive: false });
   document.addEventListener('mousemove', onMove);
@@ -653,22 +679,40 @@ function initLineTapBar() {
 }
 
 function updateLineDots(positions) {
-  const container = document.getElementById('line-dots');
-  if (!container) return;
-  container.innerHTML = '';
-  for (const pos of positions) {
-    const dot = document.createElement('div');
-    dot.style.cssText = `position:absolute;left:${(pos*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:rgba(79,195,247,.7);border-radius:50%;pointer-events:none`;
-    container.appendChild(dot);
-  }
+  const g = document.getElementById('voter-dots');
+  if (!g) return;
+  g.innerHTML = positions.map(pos => {
+    const cx = (H_CX + pos * H_SCALE).toFixed(1);
+    return `<circle cx="${cx}" cy="${H_CY}" r="2" fill="rgba(79,195,247,.75)"/>`;
+  }).join('');
 }
 
 function updateLineAvgMarker(avg) {
-  const marker = document.getElementById('line-avg-marker');
-  if (!marker) return;
-  if (avg === null) { marker.style.display = 'none'; return; }
-  marker.style.display = 'block';
-  marker.style.left = (avg * 100).toFixed(2) + '%';
+  const tick = document.getElementById('avg-tick');
+  if (!tick) return;
+  if (avg === null) { tick.setAttribute('display', 'none'); return; }
+  const x = (H_CX + avg * H_SCALE).toFixed(1);
+  tick.setAttribute('x1', x);
+  tick.setAttribute('x2', x);
+  tick.removeAttribute('display');
+}
+
+function resultHouseSVG(linePos, handle) {
+  if (linePos === null || linePos === undefined) return '';
+  const side = handle === 'in' ? -1 : 1;
+  const cx = (H_CX + side * linePos * H_SCALE).toFixed(1);
+  return `<svg viewBox="0 0 100 100" width="130" height="130"
+    style="display:block;overflow:visible">
+    <defs>
+      <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${houseRingsHTML()}
+    <circle cx="${cx}" cy="${H_CY}" r="5" fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
+    <text x="${cx}" y="${H_CY - 8}" text-anchor="middle" font-size="4.5" fill="#ffd700" font-weight="bold">${formatFtIn(linePos)}</text>
+  </svg>`;
 }
 
 function buildCategoryUI(state) {
@@ -682,7 +726,7 @@ function buildCategoryUI(state) {
     section.innerHTML = `<div class="cat-title">${cat.label}</div>`;
 
     if (cat.continuous) {
-      section.insertAdjacentHTML('beforeend', buildLineTapBar(closed));
+      section.insertAdjacentHTML('beforeend', buildLineHouse(closed));
     } else {
       const row = document.createElement('div');
       row.className = 'options-row';
@@ -757,6 +801,7 @@ function renderResult(state) {
   document.getElementById('result-shot').textContent   = shotLabels[w.type]   || '—';
   document.getElementById('result-detail').textContent =
     `${shotLabels[w.handle] || '—'}  ·  ${formatFtIn(w.line)}`;
+  document.getElementById('result-house').innerHTML = resultHouseSVG(w.line, w.handle);
 
   const parts = [];
   if (myVotes.type)       parts.push(shotLabels[myVotes.type]);

@@ -359,33 +359,6 @@
     animation: spin 1s linear infinite;
   }
 
-  /* ─── Line distribution bar (display) ───────── */
-  .line-distrib-bar {
-    position: relative;
-    height: 22px;
-    border-radius: 6px;
-    background: linear-gradient(90deg,#c84040 0%,#c8d4e4 35%,#3a72b8 65%,#c8d4e4 85%,#c84040 100%);
-    overflow: visible;
-    margin-bottom: 3px;
-  }
-  .line-distrib-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: .55rem;
-    color: var(--muted);
-  }
-  .line-avg-marker-disp {
-    position: absolute;
-    top: -5px; bottom: -5px;
-    width: 3px;
-    background: #ffd700;
-    border-radius: 2px;
-    transform: translateX(-50%);
-    box-shadow: 0 0 8px rgba(255,215,0,.6);
-    display: none;
-    pointer-events: none;
-  }
-
   .stone-area {
     display: flex;
     flex-direction: column;
@@ -630,12 +603,56 @@ function renderBody(sheetId, container) {
   }
 }
 
+// ─── House SVG helper ───────────────────────────────────────────────────────────
+
+const D_CX = 50, D_CY = 50, D_SCALE = 46;
+
+function displayHouseRingsHTML() {
+  return [
+    { r: 46,   fill: '#0d2d50' },
+    { r: 30.7, fill: '#c8dff0' },
+    { r: 15.3, fill: '#9b1c1c' },
+    { r: 3.8,  fill: '#c8dff0' },
+  ].map(({r, fill}) =>
+    `<circle cx="${D_CX}" cy="${D_CY}" r="${r}" fill="${fill}" stroke="rgba(255,255,255,.08)" stroke-width=".5"/>`
+  ).join('') +
+  `<circle cx="${D_CX}" cy="${D_CY}" r="1.5" fill="#9b1c1c"/>` +
+  `<line x1="${D_CX-D_SCALE}" y1="${D_CY}" x2="${D_CX+D_SCALE}" y2="${D_CY}" stroke="rgba(255,255,255,.45)" stroke-width=".8"/>` +
+  [15.3, 30.7].flatMap(r => [D_CX - r, D_CX + r]).map(x =>
+    `<line x1="${x.toFixed(1)}" y1="${(D_CY-2.5).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(D_CY+2.5).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width=".6"/>`
+  ).join('') +
+  `<text x="${D_CX}" y="${D_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">Ctr</text>` +
+  [[15.3,"4'"],[30.7,"8'"],[46,"12'"]].map(([r,l]) =>
+    `<text x="${(D_CX+r).toFixed(1)}" y="${D_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">${l}</text>` +
+    `<text x="${(D_CX-r).toFixed(1)}" y="${D_CY+8}" text-anchor="middle" font-size="4" fill="rgba(255,255,255,.55)">${l}</text>`
+  ).join('');
+}
+
+function lineHouseVotingHTML(sheetId) {
+  const ld = lineData[sheetId] || { positions: [], avg: null };
+  const dotsHTML = ld.positions.map(p => {
+    const cx = (D_CX + p * D_SCALE).toFixed(1);
+    return `<circle cx="${cx}" cy="${D_CY}" r="2" fill="rgba(79,195,247,.8)"/>`;
+  }).join('');
+  const avgX = ld.avg !== null ? (D_CX + ld.avg * D_SCALE).toFixed(1) : null;
+  const avgHTML = avgX
+    ? `<line x1="${avgX}" y1="${D_CY-6}" x2="${avgX}" y2="${D_CY+6}" stroke="#ffd700" stroke-width="1.5" id="lavg-${sheetId}"/>`
+    : `<line x1="-999" y1="${D_CY-6}" x2="-999" y2="${D_CY+6}" stroke="#ffd700" stroke-width="1.5" id="lavg-${sheetId}"/>`;
+  const n = sheetNames.length;
+  const sz = n === 1 ? 120 : n === 2 ? 100 : 80;
+  return `<svg id="ldbar-${sheetId}" viewBox="0 0 100 100" width="${sz}" height="${sz}" style="display:block;overflow:visible">
+    ${displayHouseRingsHTML()}
+    <g id="voter-dots-${sheetId}">${dotsHTML}</g>
+    ${avgHTML}
+  </svg>
+  <div style="font-size:.55rem;color:var(--muted);text-align:center;margin-top:2px" id="lcount-${sheetId}">${ld.positions.length} vote${ld.positions.length !== 1 ? 's' : ''}</div>`;
+}
+
 // ─── Voting HTML ────────────────────────────────────────────────────────────────
 
 const colorMap = {
   guard: 'guard', draw: 'draw', takeout: 'takeout',
   in: 'in', out: 'out',
-  '12': 'l12', '8': 'l8', '4': 'l4', '2': 'l2',
 };
 
 function buildVotingHTML(sheetId) {
@@ -646,19 +663,7 @@ function buildVotingHTML(sheetId) {
   for (const [catKey, cat] of Object.entries(categories)) {
     barsHTML += `<div class="category-block"><div class="cat-label">${cat.label}</div>`;
     if (cat.continuous) {
-      // Line: render distribution bar
-      const ld = lineData[sheetId] || { positions: [], avg: null };
-      const avgLeft = ld.avg !== null ? (ld.avg * 100).toFixed(2) + '%' : null;
-      const dotsHTML = ld.positions.map(p =>
-        `<div style="position:absolute;left:${(p*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:rgba(79,195,247,.8);border-radius:50%;pointer-events:none"></div>`
-      ).join('');
-      barsHTML += `
-        <div class="line-distrib-bar" id="ldbar-${sheetId}">
-          ${dotsHTML}
-          <div class="line-avg-marker-disp" id="lavg-${sheetId}"${avgLeft ? ` style="display:block;left:${avgLeft}"` : ''}></div>
-        </div>
-        <div class="line-distrib-labels"><span>Center</span><span>2'</span><span>4'</span><span>6'</span><span>8'</span><span>10'</span><span>12'</span></div>
-        <div style="font-size:.6rem;color:var(--muted);text-align:right;margin-top:2px" id="lcount-${sheetId}">${s.lineCount || 0} vote${s.lineCount !== 1 ? 's' : ''}</div>`;
+      barsHTML += `<div style="display:flex;flex-direction:column;align-items:center">${lineHouseVotingHTML(sheetId)}</div>`;
     } else {
       const total = Object.values(s.votes[catKey]).reduce((a,b) => a+b, 0);
       for (const opt of cat.options) {
@@ -727,28 +732,23 @@ function updateLineDistrib(sheetId) {
   const s = sheetsData[sheetId];
   if (!s || s.phase !== 'voting') return;
   const ld = lineData[sheetId] || { positions: [], avg: null };
-  const bar = document.getElementById(`ldbar-${sheetId}`);
-  const avgMarker = document.getElementById(`lavg-${sheetId}`);
-  const countEl = document.getElementById(`lcount-${sheetId}`);
-  if (!bar) return;
 
-  // Rebuild dots
-  const existingDots = bar.querySelectorAll('.ldot');
-  existingDots.forEach(d => d.remove());
-  for (const p of ld.positions) {
-    const dot = document.createElement('div');
-    dot.className = 'ldot';
-    dot.style.cssText = `position:absolute;left:${(p*100).toFixed(2)}%;top:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:rgba(79,195,247,.8);border-radius:50%;pointer-events:none`;
-    bar.appendChild(dot);
+  const dotsG = document.getElementById(`voter-dots-${sheetId}`);
+  if (dotsG) {
+    dotsG.innerHTML = ld.positions.map(p => {
+      const cx = (D_CX + p * D_SCALE).toFixed(1);
+      return `<circle cx="${cx}" cy="${D_CY}" r="2" fill="rgba(79,195,247,.8)"/>`;
+    }).join('');
   }
-  if (avgMarker) {
-    if (ld.avg !== null) {
-      avgMarker.style.display = 'block';
-      avgMarker.style.left = (ld.avg * 100).toFixed(2) + '%';
-    } else {
-      avgMarker.style.display = 'none';
-    }
+
+  const avgLine = document.getElementById(`lavg-${sheetId}`);
+  if (avgLine) {
+    const x = ld.avg !== null ? (D_CX + ld.avg * D_SCALE).toFixed(1) : '-999';
+    avgLine.setAttribute('x1', x);
+    avgLine.setAttribute('x2', x);
   }
+
+  const countEl = document.getElementById(`lcount-${sheetId}`);
   if (countEl) countEl.textContent = `${ld.positions.length} vote${ld.positions.length !== 1 ? 's' : ''}`;
 }
 
@@ -784,24 +784,47 @@ function formatLineResult(pos) {
   return inches > 0 ? `${feet}' ${inches}"` : `${feet}'`;
 }
 
+function resultHouseHTML(linePos, handle, size) {
+  if (linePos === null || linePos === undefined) return '';
+  const side = handle === 'in' ? -1 : 1;
+  const cx = (D_CX + side * linePos * D_SCALE).toFixed(1);
+  const ftStr = formatLineResult(linePos);
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block;overflow:visible">
+    <defs>
+      <filter id="res-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${displayHouseRingsHTML()}
+    <circle cx="${cx}" cy="${D_CY}" r="5" fill="#ffd700" stroke="#fff" stroke-width=".8" filter="url(#res-glow)"/>
+    <text x="${cx}" y="${D_CY - 9}" text-anchor="middle" font-size="5" fill="#ffd700" font-weight="bold">${ftStr}</text>
+  </svg>`;
+}
+
 function buildResultHTML(s) {
   const w = s.winners;
   const type   = w.type   ? shotLabels[w.type]   : '—';
   const handle = w.handle ? shotLabels[w.handle] : '—';
-  const line   = formatLineResult(w.line);
 
-  const sz = sheetNames.length === 1 ? 160 : sheetNames.length === 2 ? 120 : 90;
+  const n = sheetNames.length;
+  const stoneSz = n === 1 ? 160 : n === 2 ? 120 : 90;
+  const houseSz = n === 1 ? 160 : n === 2 ? 120 : 90;
+
   const stoneEl = s.stoneColor && s.round > 0
     ? `<div class="stone-area" style="margin-bottom:6px">
-        ${stoneGraphicHTML(s.stoneColor, sz)}
+        ${stoneGraphicHTML(s.stoneColor, stoneSz)}
         <div class="stone-color-label" style="color:${stoneColorCSS(s.stoneColor)}">${colorLabel(s.stoneColor)} Stones</div>
       </div>` : '';
+
+  const houseEl = resultHouseHTML(w.line, w.handle, houseSz);
 
   return `<div class="result-card">
     ${stoneEl}
     <div class="result-label">The crowd has spoken</div>
     <div class="result-shot">${type}</div>
-    <div class="result-sub">${handle} &nbsp;·&nbsp; ${line}</div>
+    <div class="result-sub">${handle}</div>
+    ${houseEl ? `<div style="display:flex;justify-content:center;margin-top:10px">${houseEl}</div>` : ''}
     <div class="waiting-pill">Waiting for next stone…</div>
   </div>`;
 }
