@@ -260,7 +260,7 @@
     margin-bottom: 6px;
   }
   .result-shot {
-    font-size: clamp(4rem, 8vw, 13rem);
+    font-size: clamp(2rem, 4vw, 6.5rem);
     font-weight: 900;
     color: var(--gold);
     letter-spacing: .04em;
@@ -268,7 +268,7 @@
     text-shadow: 0 0 50px rgba(255,215,0,.55);
   }
   .result-sub {
-    font-size: clamp(1.5rem, 3vw, 4.5rem);
+    font-size: clamp(.75rem, 1.5vw, 2.25rem);
     color: var(--ice);
     margin-top: 8px;
     font-weight: 700;
@@ -813,7 +813,7 @@ function buildResultHTML(s) {
   const handle = w.handle ? shotLabels[w.handle] : '—';
 
   const n = sheetNames.length;
-  const stoneSz = n === 1 ? 160 : n === 2 ? 120 : 90;
+  const stoneSz = n === 1 ? 80 : n === 2 ? 60 : 45;
   const houseSz = n === 1 ? 480 : n === 2 ? 360 : 270;
 
   const stoneEl = s.stoneColor && s.round > 0
